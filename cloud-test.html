@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Moka Cloud V1 Test</title>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #101820;
+      color: white;
+      padding: 20px;
+    }
+
+    .card {
+      background: #1d2b36;
+      padding: 18px;
+      border-radius: 16px;
+      max-width: 520px;
+      margin: auto;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+
+    h1 {
+      margin-top: 0;
+      color: #ffd166;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      font-size: 14px;
+      color: #ddd;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+
+    button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 12px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      background: #ffd166;
+      color: #111;
+    }
+
+    button.secondary {
+      background: #4cc9f0;
+    }
+
+    button.danger {
+      background: #ef476f;
+      color: white;
+    }
+
+    #log {
+      background: #0b1117;
+      padding: 12px;
+      border-radius: 10px;
+      height: 220px;
+      overflow-y: auto;
+      margin-top: 15px;
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      background: #0b1117;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>🤖 Moka Cloud V1</h1>
+
+    <div class="status">
+      Status: <span id="status">Belum connect</span>
+    </div>
+
+    <label>MQTT WSS URL</label>
+    <input id="mqttUrl" value="wss://035dda38e38748bcb5964e620ecd52cb.s1.eu.hivemq.cloud:8884/mqtt">
+
+    <label>Username</label>
+    <input id="mqttUser" value="moka-robot01">
+
+    <label>Password</label>
+    <input id="mqttPass" type="password" placeholder="Isi password MQTT HiveMQ">
+
+    <button onclick="connectMQTT()">CONNECT MQTT</button>
+    <button class="secondary" onclick="sendPing()">KIRIM PING KE MOKA</button>
+    <button class="danger" onclick="disconnectMQTT()">DISCONNECT</button>
+
+    <div id="log"></div>
+  </div>
+
+  <script>
+    let client = null;
+
+    const TOPIC_COMMAND = "moka/v1/command";
+    const TOPIC_STATUS  = "moka/v1/status";
+
+    function log(msg) {
+      const box = document.getElementById("log");
+      const time = new Date().toLocaleTimeString();
+      box.textContent += `[${time}] ${msg}\n`;
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function setStatus(text) {
+      document.getElementById("status").textContent = text;
+    }
+
+    function connectMQTT() {
+      const url = document.getElementById("mqttUrl").value.trim();
+      const username = document.getElementById("mqttUser").value.trim();
+      const password = document.getElementById("mqttPass").value;
+
+      if (!password) {
+        alert("Isi password MQTT dulu.");
+        return;
+      }
+
+      const clientId = "moka_web_" + Math.random().toString(16).slice(2, 10);
+
+      log("Menghubungkan ke MQTT...");
+      log("URL: " + url);
+      log("Client ID: " + clientId);
+
+      client = mqtt.connect(url, {
+        clientId: clientId,
+        username: username,
+        password: password,
+        clean: true,
+        reconnectPeriod: 3000,
+        connectTimeout: 8000
+      });
+
+      client.on("connect", function () {
+        setStatus("Connected");
+        log("MQTT connected.");
+
+        client.subscribe(TOPIC_STATUS, function (err) {
+          if (!err) {
+            log("Subscribe status: " + TOPIC_STATUS);
+          } else {
+            log("Gagal subscribe status.");
+          }
+        });
+      });
+
+      client.on("message", function (topic, message) {
+        log("Pesan masuk dari " + topic + ": " + message.toString());
+      });
+
+      client.on("error", function (err) {
+        setStatus("Error");
+        log("MQTT error: " + err.message);
+      });
+
+      client.on("close", function () {
+        setStatus("Disconnected");
+        log("MQTT disconnected.");
+      });
+
+      client.on("reconnect", function () {
+        setStatus("Reconnecting...");
+        log("MQTT reconnecting...");
+      });
+    }
+
+    function sendPing() {
+      if (!client || !client.connected) {
+        alert("MQTT belum connect.");
+        return;
+      }
+
+      const payload = JSON.stringify({
+        cmd: "ping",
+        from: "github-pages",
+        time: new Date().toISOString()
+      });
+
+      client.publish(TOPIC_COMMAND, payload);
+      log("Publish ke " + TOPIC_COMMAND + ": " + payload);
+    }
+
+    function disconnectMQTT() {
+      if (client) {
+        client.end();
+        client = null;
+        setStatus("Disconnected");
+        log("Manual disconnect.");
+      }
+    }
+  </script>
+</body>
+</html>
