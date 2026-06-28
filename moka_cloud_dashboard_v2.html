@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moka Cloud Dashboard V2</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b1020;--card:#121a2d;--card2:#18233a;--line:#253653;
+      --text:#f7fafc;--muted:#a8b3c7;--yellow:#ffd166;--blue:#4cc9f0;
+      --green:#06d6a0;--red:#ef476f;--orange:#f4a261;--purple:#b388ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:radial-gradient(circle at top,#1d2b55 0,#0b1020 45%,#070b14 100%);color:var(--text);padding:16px}
+    .wrap{max-width:1100px;margin:0 auto 40px}
+    .hero{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:8px 0 16px}
+    .title h1{margin:0;color:var(--yellow);font-size:28px}.title p{margin:6px 0 0;color:var(--muted)}
+    .pill{display:inline-flex;gap:8px;align-items:center;background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:999px;padding:9px 13px;color:var(--muted);font-size:14px}
+    .dot{width:10px;height:10px;border-radius:50%;background:#777;box-shadow:0 0 0 4px rgba(255,255,255,.06)}
+    .dot.on{background:var(--green);box-shadow:0 0 12px var(--green)}.dot.err{background:var(--red);box-shadow:0 0 12px var(--red)}.dot.warn{background:var(--orange);box-shadow:0 0 12px var(--orange)}
+    .grid{display:grid;gap:14px}.grid.two{grid-template-columns:1fr}.grid.three{grid-template-columns:1fr}.grid.four{grid-template-columns:repeat(2,1fr)}
+    @media(min-width:760px){.grid.two{grid-template-columns:1.1fr .9fr}.grid.three{grid-template-columns:repeat(3,1fr)}.grid.four{grid-template-columns:repeat(4,1fr)}}
+    .card{background:linear-gradient(180deg,rgba(24,35,58,.96),rgba(18,26,45,.96));border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:0 12px 35px rgba(0,0,0,.28)}
+    .card h2{margin:0 0 12px;color:var(--yellow);font-size:18px}.card h3{margin:14px 0 8px;color:#fff;font-size:15px}.muted{color:var(--muted);font-size:13px;line-height:1.45}.small{font-size:12px;color:var(--muted)}
+    .stat{background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:13px;min-height:82px}
+    .stat .label{color:var(--muted);font-size:12px;margin-bottom:8px}.stat .value{font-size:20px;font-weight:800;word-break:break-word}.stat .value.smallv{font-size:15px}
+    label{display:block;color:var(--muted);font-size:13px;margin:10px 0 5px}input,select{width:100%;border:none;border-radius:12px;background:#0b111f;color:#fff;padding:12px;font-size:14px;outline:1px solid rgba(255,255,255,.08)}input:focus,select:focus{outline:2px solid var(--blue)}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.row .fit{flex:0 0 auto}
+    button{border:none;border-radius:13px;padding:12px 13px;font-weight:800;cursor:pointer;color:#111;background:var(--yellow);transition:.12s transform,.12s opacity;min-height:44px}button:active{transform:scale(.98)}button:hover{opacity:.92}
+    button.blue{background:var(--blue)}button.green{background:var(--green)}button.red{background:var(--red);color:#fff}button.dark{background:#334756;color:#fff}button.orange{background:var(--orange)}button.purple{background:var(--purple);color:#101010}button.ghost{background:transparent;color:#fff;border:1px solid var(--line)}
+    .btnGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}@media(min-width:560px){.btnGrid{grid-template-columns:repeat(4,1fr)}}
+    .btnGrid.compact{grid-template-columns:repeat(2,1fr)}@media(min-width:560px){.btnGrid.compact{grid-template-columns:repeat(3,1fr)}}
+    #log{height:260px;overflow:auto;background:#070b14;border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:12px;font-family:Consolas,monospace;font-size:12px;white-space:pre-wrap;color:#d6e4ff}
+    .switch{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-top:10px}.switch input{width:auto;outline:none}
+    .badge{display:inline-block;padding:5px 8px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--muted);font-size:12px}
+    .voiceBox{background:rgba(76,201,240,.08);border:1px solid rgba(76,201,240,.22);padding:12px;border-radius:16px}
+    .heard{min-height:42px;background:rgba(0,0,0,.2);border-radius:12px;padding:10px;color:#fff;font-size:14px;margin-top:8px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="title">
+      <h1>🤖 Moka Cloud Dashboard V2</h1>
+      <p>Control center Moka via MQTT Cloud: status, tombol, voice, idle, teach pose, dan log.</p>
+    </div>
+    <div class="pill"><span id="topDot" class="dot"></span><span id="topStatus">Belum connect</span></div>
+  </div>
+
+  <div class="grid three" style="margin-bottom:14px">
+    <div class="stat"><div class="label">MQTT</div><div id="mqttState" class="value">Offline</div><div id="mqttUrlShort" class="small">-</div></div>
+    <div class="stat"><div class="label">Moka Current</div><div id="currentState" class="value">-</div><div id="lastSeen" class="small">Belum ada status</div></div>
+    <div class="stat"><div class="label">Last Status</div><div id="lastStatus" class="value smallv">-</div><div id="latency" class="small">Latency: -</div></div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h2>1) Koneksi MQTT</h2>
+      <div class="muted">Gunakan credential HiveMQ kamu. Password bisa diisi manual setiap membuka dashboard, atau disimpan di perangkat pribadi.</div>
+      <label>MQTT WSS URL</label>
+      <input id="mqttUrl" value="wss://035dda38e38748bcb5964e620ecd52cb.s1.eu.hivemq.cloud:8884/mqtt">
+      <div class="row">
+        <div><label>Username</label><input id="mqttUser" value="moka-robot01"></div>
+        <div><label>Password</label><input id="mqttPass" type="password" placeholder="Password MQTT HiveMQ"></div>
+      </div>
+      <label class="switch"><input id="remember" type="checkbox"> Simpan setting di browser ini</label>
+      <div class="btnGrid" style="margin-top:12px">
+        <button class="green" onclick="connectMQTT()">CONNECT</button>
+        <button class="red" onclick="disconnectMQTT()">DISCONNECT</button>
+        <button class="blue" onclick="sendPing()">PING</button>
+        <button class="dark" onclick="clearLog()">CLEAR LOG</button>
+      </div>
+      <label class="switch"><input id="autoPing" type="checkbox" checked onchange="toggleAutoPing()"> Auto ping setiap 30 detik</label>
+    </div>
+
+    <div class="card">
+      <h2>2) Voice Control</h2>
+      <div class="voiceBox">
+        <div class="muted">Klik aktifkan, lalu ucapkan: <span class="badge">Moka dadah</span> <span class="badge">Moka joget</span> <span class="badge">Moka tidur</span></div>
+        <div class="btnGrid compact" style="margin-top:12px">
+          <button class="blue" onclick="startVoice()">AKTIFKAN MIC</button>
+          <button class="red" onclick="stopVoice()">MATIKAN MIC</button>
+          <button class="purple" onclick="sendCommand('confused')">BINGUNG</button>
+        </div>
+        <div id="voiceStatus" class="small" style="margin-top:10px">Voice: belum aktif</div>
+        <div id="heard" class="heard">Yang terdengar akan muncul di sini...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>3) Command Utama</h2>
+    <div class="btnGrid">
+      <button onclick="sendCommand('rest')">REST</button>
+      <button onclick="sendCommand('stand')">STAND</button>
+      <button onclick="sendCommand('ready')">READY</button>
+      <button class="blue" onclick="sendTimePoint()">JAM</button>
+      <button onclick="sendCommand('wave')">WAVE</button>
+      <button onclick="sendCommand('dance')">DANCE</button>
+      <button onclick="sendCommand('bow')">BOW</button>
+      <button onclick="sendCommand('shake')">SHAKE</button>
+      <button onclick="sendCommand('cute')">CUTE</button>
+      <button onclick="sendCommand('pushup')">PUSH UP</button>
+      <button onclick="sendCommand('walksoft')">MAJU</button>
+      <button onclick="sendCommand('backsoft')">MUNDUR</button>
+      <button onclick="sendCommand('leftsoft')">KIRI</button>
+      <button onclick="sendCommand('rightsoft')">KANAN</button>
+      <button onclick="sendCommand('confused')">CONFUSED</button>
+      <button class="red" onclick="sendCommand('stop')">STOP</button>
+    </div>
+  </div>
+
+  <div class="grid two" style="margin-top:14px">
+    <div class="card">
+      <h2>4) Idle Personality</h2>
+      <div class="muted">Mode santai Moka: hello, stretching/pushup/loncat kecil, joget, lalu tidur.</div>
+      <div class="btnGrid compact" style="margin-top:12px">
+        <button class="green" onclick="sendCommand('idleon')">IDLE ON</button>
+        <button class="red" onclick="sendCommand('idleoff')">IDLE OFF</button>
+        <button class="dark" onclick="sendCommand('sleepy')">SLEEPY</button>
+        <button class="blue" onclick="sendCommand('wakeup')">WAKE UP</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>5) Teach Pose Cepat</h2>
+      <div class="muted">Untuk test servo/pose dari cloud. Pakai hati-hati, gerakkan sedikit-sedikit.</div>
+      <div class="row">
+        <div><label>Servo</label><select id="servoName"><option>R1</option><option>R2</option><option>L1</option><option>L2</option><option>R4</option><option>R3</option><option>L3</option><option>L4</option></select></div>
+        <div><label>Angle</label><input id="servoAngle" type="number" min="0" max="180" value="90"></div>
+      </div>
+      <div class="btnGrid compact" style="margin-top:12px">
+        <button onclick="sendCommand('teachstart')">TEACH START</button>
+        <button class="blue" onclick="sendSetServo()">SET SERVO</button>
+        <button class="dark" onclick="sendCommand('teachcancel')">CANCEL</button>
+      </div>
+      <div class="row">
+        <div><label>Nama pose</label><input id="poseName" value="salam"></div>
+      </div>
+      <div class="btnGrid compact" style="margin-top:12px">
+        <button class="green" onclick="sendSavePose()">SAVE POSE</button>
+        <button class="purple" onclick="sendRunPose()">RUN POSE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>6) Log MQTT</h2>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+let client=null;
+let lastSeenAt=0;
+let lastPingTime=0;
+let autoPingTimer=null;
+let recognition=null;
+let voiceActive=false;
+
+const TOPIC_COMMAND="moka/v1/command";
+const TOPIC_STATUS="moka/v1/status";
+const wakeWords=["moka","moca","mocha","mocca","muka","boka","moga","moka robot"];
+
+function el(id){return document.getElementById(id)}
+function log(msg){const box=el('log');const t=new Date().toLocaleTimeString();box.textContent+=`[${t}] ${msg}\n`;box.scrollTop=box.scrollHeight;}
+function clearLog(){el('log').textContent='';}
+function setTop(text,mode){el('topStatus').textContent=text;const d=el('topDot');d.className='dot '+(mode||'');}
+function setMqttState(text){el('mqttState').textContent=text;el('topStatus').textContent=text;}
+function safeJsonParse(s){try{return JSON.parse(s)}catch(e){return null}}
+function shortUrl(url){return url.replace('wss://','').replace('/mqtt','')}
+function saveSettings(){if(!el('remember').checked)return;localStorage.setItem('moka_mqtt_url',el('mqttUrl').value);localStorage.setItem('moka_mqtt_user',el('mqttUser').value);localStorage.setItem('moka_mqtt_pass',el('mqttPass').value);localStorage.setItem('moka_remember','1');}
+function loadSettings(){if(localStorage.getItem('moka_remember')==='1'){el('remember').checked=true;el('mqttUrl').value=localStorage.getItem('moka_mqtt_url')||el('mqttUrl').value;el('mqttUser').value=localStorage.getItem('moka_mqtt_user')||el('mqttUser').value;el('mqttPass').value=localStorage.getItem('moka_mqtt_pass')||'';}}
+
+function connectMQTT(){
+  const url=el('mqttUrl').value.trim();const username=el('mqttUser').value.trim();const password=el('mqttPass').value;
+  if(!password){alert('Isi password MQTT dulu.');return;}
+  saveSettings();
+  if(client){try{client.end(true)}catch(e){}}
+  const clientId='moka_dashboard_v2_'+Math.random().toString(16).slice(2,10);
+  el('mqttUrlShort').textContent=shortUrl(url);
+  log('CONNECT '+url);
+  client=mqtt.connect(url,{clientId,username,password,clean:true,reconnectPeriod:3000,connectTimeout:10000});
+  client.on('connect',()=>{setTop('MQTT Connected','on');setMqttState('Connected');log('MQTT connected. Client ID: '+clientId);client.subscribe(TOPIC_STATUS,(err)=>{if(err)log('Subscribe gagal: '+err.message);else log('Subscribe: '+TOPIC_STATUS);});toggleAutoPing();setTimeout(()=>sendPing(),500);});
+  client.on('message',(topic,message)=>handleMessage(topic,message.toString()));
+  client.on('error',(err)=>{setTop('MQTT Error','err');setMqttState('Error');log('MQTT error: '+err.message);});
+  client.on('close',()=>{setTop('MQTT Disconnected','warn');setMqttState('Disconnected');log('MQTT disconnected.');});
+  client.on('reconnect',()=>{setTop('MQTT Reconnecting','warn');setMqttState('Reconnecting...');log('MQTT reconnecting...');});
+}
+function disconnectMQTT(){if(client){client.end();client=null;}setTop('Disconnected','warn');setMqttState('Offline');stopAutoPing();log('Manual disconnect.');}
+function publishPayload(payload){
+  if(!client||!client.connected){alert('MQTT belum connect. Klik CONNECT dulu.');return;}
+  payload.from='moka-dashboard-v2';payload.time=new Date().toISOString();
+  const text=JSON.stringify(payload);client.publish(TOPIC_COMMAND,text);log('TX '+TOPIC_COMMAND+': '+text);
+}
+function sendCommand(cmd){el('lastStatus').textContent='TX: '+cmd;publishPayload({cmd});}
+function sendPing(){lastPingTime=Date.now();publishPayload({cmd:'ping'});}
+function pad(n){return String(n).padStart(2,'0')}
+function sendTimePoint(){const n=new Date();publishPayload({cmd:'timepoint',hh:pad(n.getHours()),mm:pad(n.getMinutes())});}
+function sendSetServo(){let a=parseInt(el('servoAngle').value,10);if(isNaN(a))a=90;a=Math.max(0,Math.min(180,a));publishPayload({cmd:'setservo',servo:el('servoName').value,angle:a});}
+function poseName(){return (el('poseName').value||'pose').trim().toLowerCase().replace(/\s+/g,'_')}
+function sendSavePose(){publishPayload({cmd:'savepose',name:poseName()});}
+function sendRunPose(){publishPayload({cmd:'custom',name:poseName()});}
+
+function handleMessage(topic,text){
+  log('RX '+topic+': '+text);
+  const data=safeJsonParse(text);
+  lastSeenAt=Date.now();
+  el('lastSeen').textContent='Baru saja';
+  if(data){
+    el('lastStatus').textContent=data.status||'-';
+    el('currentState').textContent=data.current||data.status||'-';
+    if(data.status==='pong' && lastPingTime){el('latency').textContent='Latency: '+(Date.now()-lastPingTime)+' ms';}
+    if(data.status==='online'){setTop('Moka Online','on');}
+  }else{el('lastStatus').textContent=text;}
+}
+
+function updateLastSeenLabel(){
+  if(!lastSeenAt)return;
+  const s=Math.floor((Date.now()-lastSeenAt)/1000);
+  if(s<5)el('lastSeen').textContent='Baru saja';
+  else if(s<60)el('lastSeen').textContent=s+' detik lalu';
+  else el('lastSeen').textContent=Math.floor(s/60)+' menit lalu';
+}
+setInterval(updateLastSeenLabel,1000);
+function toggleAutoPing(){stopAutoPing();if(el('autoPing').checked&&client&&client.connected){autoPingTimer=setInterval(()=>sendPing(),30000);}}
+function stopAutoPing(){if(autoPingTimer){clearInterval(autoPingTimer);autoPingTimer=null;}}
+
+function startVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){alert('Browser belum mendukung SpeechRecognition. Coba Chrome.');return;}
+  if(recognition){try{recognition.stop()}catch(e){}}
+  recognition=new SR();recognition.lang='id-ID';recognition.continuous=true;recognition.interimResults=false;
+  recognition.onstart=()=>{voiceActive=true;el('voiceStatus').textContent='Voice: aktif, panggil “Moka ...”';log('Voice aktif.');};
+  recognition.onend=()=>{el('voiceStatus').textContent='Voice: berhenti';if(voiceActive){setTimeout(()=>{try{recognition.start()}catch(e){}},700)}};
+  recognition.onerror=(e)=>{el('voiceStatus').textContent='Voice error: '+e.error;log('Voice error: '+e.error);};
+  recognition.onresult=(event)=>{for(let i=event.resultIndex;i<event.results.length;i++){if(event.results[i].isFinal){const text=event.results[i][0].transcript.toLowerCase().trim();el('heard').textContent=text;log('VOICE: '+text);handleVoice(text);}}};
+  try{recognition.start()}catch(e){log('Voice start gagal: '+e.message)}
+}
+function stopVoice(){voiceActive=false;if(recognition){try{recognition.stop()}catch(e){}}el('voiceStatus').textContent='Voice: dimatikan';}
+function hasWake(text){return wakeWords.some(w=>text.includes(w));}
+function handleVoice(text){
+  if(!hasWake(text)){return;}
+  let t=text;
+  wakeWords.forEach(w=>{t=t.replaceAll(w,'')});
+  t=t.trim();
+  let cmd='confused';
+  if(t.includes('tidur')||t.includes('istirahat')||t.includes('rest'))cmd='rest';
+  else if(t.includes('bangun'))cmd='wakeup';
+  else if(t.includes('berdiri')||t.includes('stand'))cmd='stand';
+  else if(t.includes('siap')||t.includes('ready'))cmd='ready';
+  else if(t.includes('dadah')||t.includes('lambai')||t.includes('halo'))cmd='wave';
+  else if(t.includes('joget')||t.includes('dance'))cmd='dance';
+  else if(t.includes('sujud')||t.includes('bow')||t.includes('menunduk'))cmd='bow';
+  else if(t.includes('salaman')||t.includes('shake'))cmd='shake';
+  else if(t.includes('imut')||t.includes('cute'))cmd='cute';
+  else if(t.includes('push')||t.includes('olahraga'))cmd='pushup';
+  else if(t.includes('maju'))cmd='walksoft';
+  else if(t.includes('mundur'))cmd='backsoft';
+  else if(t.includes('kiri'))cmd='leftsoft';
+  else if(t.includes('kanan'))cmd='rightsoft';
+  else if(t.includes('mode santai')||t.includes('idle on'))cmd='idleon';
+  else if(t.includes('diam dulu')||t.includes('idle off'))cmd='idleoff';
+  else if(t.includes('jam')){sendTimePoint();return;}
+  sendCommand(cmd);
+}
+
+loadSettings();
+setTop('Belum connect','');
+</script>
+</body>
+</html>
