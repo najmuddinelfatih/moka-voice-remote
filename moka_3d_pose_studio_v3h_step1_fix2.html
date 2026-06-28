@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moka V3H Step 1 Fix2 - True 3D Viewer</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <style>
+    :root{
+      --bg:#101820; --panel:#172331; --panel2:#0d141d; --line:#2b3b4d;
+      --accent:#ffd166; --accent2:#4cc9f0; --danger:#ef476f; --ok:#06d6a0;
+      --text:#f8f9fa; --muted:#a9b4c0;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;overflow:hidden;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+    #app{display:grid;grid-template-columns:1fr 330px;height:100vh;width:100vw}
+    #viewerWrap{position:relative;min-width:0;background:linear-gradient(#1b2431,#0b1018)}
+    #viewer{position:absolute;inset:0}
+    #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#101820;color:white;z-index:5;text-align:center;padding:30px}
+    #loading.hide{display:none}
+    .topbar{position:absolute;left:16px;top:16px;z-index:3;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .pill{background:rgba(10,17,25,.84);border:1px solid rgba(255,255,255,.12);padding:8px 10px;border-radius:999px;font-size:13px;color:var(--muted);backdrop-filter: blur(8px)}
+    .pill b{color:white}
+    .hud{position:absolute;left:16px;bottom:16px;z-index:3;background:rgba(10,17,25,.78);border:1px solid rgba(255,255,255,.12);padding:10px 12px;border-radius:14px;font-size:13px;color:var(--muted);line-height:1.5;max-width:480px;backdrop-filter: blur(8px)}
+    #side{background:var(--panel);border-left:1px solid var(--line);padding:16px;overflow:auto}
+    h1{font-size:22px;margin:0 0 6px;color:var(--accent)}
+    h2{font-size:15px;color:white;margin:18px 0 8px}
+    p{color:var(--muted);font-size:13px;line-height:1.5;margin:6px 0 12px}
+    .card{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0}
+    .status{font-size:13px;color:var(--muted);line-height:1.6}
+    .selectedName{font-size:20px;font-weight:bold;color:white;margin-top:6px}
+    .servoMap{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+    .box{background:#121d29;border:1px solid #26384a;border-radius:10px;padding:10px;font-size:13px;color:#cbd5df}
+    .box b{display:block;color:white;font-size:16px;margin-bottom:3px}
+    button{width:100%;border:0;border-radius:12px;padding:12px 10px;margin:7px 0;font-weight:bold;font-size:14px;cursor:pointer;background:var(--accent);color:#111}
+    button.secondary{background:var(--accent2);color:#071018}
+    button.dark{background:#26384a;color:white}
+    button.danger{background:var(--danger);color:white}
+    .legend{display:grid;grid-template-columns:18px 1fr;gap:8px 10px;font-size:13px;color:var(--muted);align-items:center;margin-top:8px}
+    .swatch{width:18px;height:18px;border-radius:5px;border:1px solid rgba(255,255,255,.25)}
+    .yellow{background:#f7b955}.gray{background:#a8a8a8}.red{background:#ff473d}.blue{background:#4cc9f0}
+    .warn{color:#ffd166;font-size:12px;line-height:1.45;margin-top:12px}
+    @media(max-width:900px){#app{grid-template-columns:1fr;grid-template-rows:1fr 360px}#side{border-left:0;border-top:1px solid var(--line)}.hud{display:none}}
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="viewerWrap">
+    <div id="viewer"></div>
+    <div id="loading">
+      <div>
+        <h2>Moka 3D Viewer</h2>
+        <p>Memuat Three.js dan model 3D sederhana...</p>
+        <p id="loadMsg"></p>
+      </div>
+    </div>
+    <div class="topbar">
+      <div class="pill">Mode: <b>V3H Step 1 Fix2</b></div>
+      <div class="pill">True 3D: <b>Three.js primitive</b></div>
+      <div class="pill">Servo: <b>belum aktif</b></div>
+    </div>
+    <div class="hud">
+      Drag mouse untuk putar kamera • Scroll untuk zoom • Klik kaki untuk memilih.<br>
+      Step ini hanya visual 3D dulu. MQTT dan kontrol servo masuk Step berikutnya.
+    </div>
+  </div>
+
+  <aside id="side">
+    <h1>🤖 Moka 3D Pose Studio</h1>
+    <p>Step 1 Fix2: model 3D Moka versi sederhana, bukan lagi 2D gepeng.</p>
+
+    <div class="card">
+      <div class="status">Bagian terpilih:</div>
+      <div class="selectedName" id="selectedName">Belum ada</div>
+      <div class="servoMap" id="servoMap">
+        <div class="box"><b>-</b>Pinggul</div>
+        <div class="box"><b>-</b>Lutut</div>
+      </div>
+    </div>
+
+    <button onclick="setCameraPreset('front')">VIEW DEPAN</button>
+    <button class="secondary" onclick="setCameraPreset('side')">VIEW SAMPING</button>
+    <button class="dark" onclick="setCameraPreset('top')">VIEW ATAS</button>
+    <button class="dark" onclick="resetCamera()">RESET CAMERA</button>
+    <button class="danger" onclick="clearSelection()">CLEAR SELECTION</button>
+
+    <div class="card">
+      <h2>Legenda</h2>
+      <div class="legend">
+        <div class="swatch yellow"></div><div>Body / frame Moka</div>
+        <div class="swatch gray"></div><div>Servo / bracket</div>
+        <div class="swatch red"></div><div>Ujung kaki</div>
+        <div class="swatch blue"></div><div>Bagian yang dipilih</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Mapping Moka</h2>
+      <p>Urutan servo internal tetap:</p>
+      <div class="box">R1, R2, L1, L2, R4, R3, L3, L4</div>
+      <p class="warn">Di Step berikutnya, nama teknis ini akan disembunyikan dan diganti kontrol manusiawi: Kanan Depan, Kiri Depan, Pinggul, Lutut.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function(){
+  const loadMsg = document.getElementById('loadMsg');
+  if (!window.THREE) {
+    loadMsg.textContent = 'Three.js gagal dimuat dari CDN. Coba refresh, atau pastikan internet tidak memblokir cdn.jsdelivr.net.';
+    return;
+  }
+
+  const viewer = document.getElementById('viewer');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x101820);
+  scene.fog = new THREE.Fog(0x101820, 8, 24);
+
+  const camera = new THREE.PerspectiveCamera(45, viewer.clientWidth/viewer.clientHeight, 0.1, 100);
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+  renderer.shadowMap.enabled = true;
+  viewer.appendChild(renderer.domElement);
+
+  const colors = {
+    yellow: 0xf7b955,
+    orange: 0xf0a13a,
+    gray: 0xa8a8a8,
+    darkGray: 0x4f555c,
+    black: 0x252a30,
+    red: 0xff473d,
+    blue: 0x4cc9f0,
+    white: 0xf2f2f2
+  };
+
+  const mat = {
+    yellow: new THREE.MeshStandardMaterial({color: colors.yellow, roughness:.58, metalness:.05}),
+    orange: new THREE.MeshStandardMaterial({color: colors.orange, roughness:.52, metalness:.05}),
+    gray: new THREE.MeshStandardMaterial({color: colors.gray, roughness:.45, metalness:.18}),
+    darkGray: new THREE.MeshStandardMaterial({color: colors.darkGray, roughness:.6, metalness:.1}),
+    black: new THREE.MeshStandardMaterial({color: colors.black, roughness:.8, metalness:.05}),
+    red: new THREE.MeshStandardMaterial({color: colors.red, roughness:.55, metalness:.1}),
+    blue: new THREE.MeshStandardMaterial({color: colors.blue, roughness:.35, metalness:.15}),
+    blueGlow: new THREE.MeshStandardMaterial({color: colors.blue, roughness:.2, metalness:.1, emissive:0x14495b, emissiveIntensity:.45})
+  };
+
+  const selectable = [];
+  const moka = new THREE.Group();
+  scene.add(moka);
+
+  function box(name, size, pos, material, parent=moka){
+    const g = new THREE.BoxGeometry(size[0], size[1], size[2]);
+    const m = new THREE.Mesh(g, material);
+    m.name = name; m.position.set(pos[0], pos[1], pos[2]);
+    m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+  }
+  function cyl(name, radius, height, pos, rot, material, parent=moka){
+    const g = new THREE.CylinderGeometry(radius, radius, height, 24);
+    const m = new THREE.Mesh(g, material);
+    m.name = name; m.position.set(pos[0], pos[1], pos[2]);
+    m.rotation.set(rot[0], rot[1], rot[2]);
+    m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+  }
+
+  // Body and head
+  box('main_body', [2.8,.65,1.65], [0,1.45,0], mat.yellow);
+  box('belly_gray', [2.25,.42,1.75], [0,1.16,0], mat.gray);
+  box('head', [1.1,.95,.95], [0,2.12,-.25], mat.yellow);
+  box('face_screen', [.72,.44,.05], [0,2.16,-.755], mat.black);
+  box('antenna_left', [.18,.45,.18], [-.32,2.78,-.12], mat.yellow);
+  box('antenna_right', [.18,.45,.18], [.32,2.78,-.12], mat.yellow);
+  cyl('top_round', .35, .42, [-.78,1.95,-.08], [Math.PI/2,0,0], mat.orange);
+
+  // Shoulder brackets
+  const shoulderData = [
+    ['FR', 'Kanan Depan',  'R1','R2',  1.65,  0.78, -1],
+    ['FL', 'Kiri Depan',   'L1','L2', -1.65,  0.78, -1],
+    ['RR', 'Kanan Belakang','R4','R3',  1.65, -0.78,  1],
+    ['RL', 'Kiri Belakang','L3','L4', -1.65, -0.78,  1],
+  ];
+
+  const originalMats = new Map();
+  const legGroups = {};
+
+  function makeLeg(code, label, hipServo, kneeServo, x, z, frontDir){
+    const grp = new THREE.Group();
+    grp.name = 'leg_' + code;
+    grp.position.set(x,1.35,z);
+    moka.add(grp);
+    legGroups[code] = grp;
+
+    const sideSign = x > 0 ? 1 : -1;
+
+    // hip servo block and round joint
+    const hipBlock = box(code+'_hip_servo', [.55,.55,.72], [0,0,0], mat.gray, grp);
+    const hipJoint = cyl(code+'_hip_joint', .24, .7, [0,0,0], [Math.PI/2,0,0], mat.orange, grp);
+    hipJoint.userData = {leg:code,label,hipServo,kneeServo,part:'hip'};
+    hipBlock.userData = {leg:code,label,hipServo,kneeServo,part:'hip'};
+
+    // upper leg out and down
+    const upper = box(code+'_upper_leg', [.28,.30,.95], [sideSign*.42,-.23,0], mat.yellow, grp);
+    upper.rotation.z = sideSign * -0.35;
+    upper.userData = {leg:code,label,hipServo,kneeServo,part:'upper'};
+
+    // knee servo/bracket
+    const knee = box(code+'_knee_servo', [.52,.72,.50], [sideSign*.62,-.88,0], mat.gray, grp);
+    knee.userData = {leg:code,label,hipServo,kneeServo,part:'knee'};
+    const kneeCap = cyl(code+'_knee_cap', .18, .55, [sideSign*.62,-.88,0], [0,0,Math.PI/2], mat.orange, grp);
+    kneeCap.userData = {leg:code,label,hipServo,kneeServo,part:'knee'};
+
+    // lower leg and foot
+    const lower = box(code+'_lower_leg', [.25,1.08,.34], [sideSign*.78,-1.55,0], mat.yellow, grp);
+    lower.rotation.z = sideSign * .15;
+    lower.userData = {leg:code,label,hipServo,kneeServo,part:'lower'};
+    const foot = cyl(code+'_foot', .13, .16, [sideSign*.86,-2.16,0], [Math.PI/2,0,0], mat.red, grp);
+    foot.scale.x = 1.5;
+    foot.userData = {leg:code,label,hipServo,kneeServo,part:'foot'};
+
+    // small front/back offset to make shape clearer
+    grp.rotation.y = frontDir * 0.06;
+
+    [hipBlock, hipJoint, upper, knee, kneeCap, lower, foot].forEach(o=>{
+      selectable.push(o);
+      originalMats.set(o, o.material);
+    });
+  }
+
+  shoulderData.forEach(d=>makeLeg(...d));
+
+  // Ground grid
+  const grid = new THREE.GridHelper(18, 36, 0x2b5cff, 0x24324a);
+  grid.position.y = -0.9;
+  scene.add(grid);
+  const axes = new THREE.AxesHelper(3);
+  axes.position.y = -0.88;
+  scene.add(axes);
+
+  // Lights
+  const hemi = new THREE.HemisphereLight(0xddeeff, 0x101820, 1.9);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 2.2);
+  dir.position.set(4,7,6); dir.castShadow = true; scene.add(dir);
+  const fill = new THREE.DirectionalLight(0x8ecaff, .75);
+  fill.position.set(-5,3,-4); scene.add(fill);
+
+  // Camera orbit controls, custom/simple
+  let target = new THREE.Vector3(0,.85,0);
+  let yaw = -0.65, pitch = 0.18, dist = 7.2;
+  let dragging = false, lastX=0, lastY=0;
+
+  function updateCamera(){
+    pitch = Math.max(-1.15, Math.min(1.15, pitch));
+    dist = Math.max(3.2, Math.min(13, dist));
+    const x = target.x + dist * Math.sin(yaw) * Math.cos(pitch);
+    const y = target.y + dist * Math.sin(pitch) + 2.2;
+    const z = target.z + dist * Math.cos(yaw) * Math.cos(pitch);
+    camera.position.set(x,y,z);
+    camera.lookAt(target);
+  }
+
+  window.resetCamera = function(){ yaw=-0.65; pitch=.18; dist=7.2; updateCamera(); };
+  window.setCameraPreset = function(p){
+    if(p==='front'){yaw=0; pitch=.12; dist=7.0;}
+    if(p==='side'){yaw=-Math.PI/2; pitch=.16; dist=7.2;}
+    if(p==='top'){yaw=-.001; pitch=1.08; dist=7.4;}
+    updateCamera();
+  };
+
+  renderer.domElement.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; renderer.domElement.setPointerCapture(e.pointerId); });
+  renderer.domElement.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+    yaw -= dx*0.007; pitch -= dy*0.006; updateCamera();
+  });
+  renderer.domElement.addEventListener('pointerup', e=>{ dragging=false; try{renderer.domElement.releasePointerCapture(e.pointerId)}catch(err){} });
+  renderer.domElement.addEventListener('wheel', e=>{ e.preventDefault(); dist += e.deltaY*0.006; updateCamera(); }, {passive:false});
+
+  // Selection
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  let selectedLeg = null;
+
+  function updatePanel(data){
+    document.getElementById('selectedName').textContent = data ? data.label : 'Belum ada';
+    document.getElementById('servoMap').innerHTML = data ? `
+      <div class="box"><b>${data.hipServo}</b>Pinggul</div>
+      <div class="box"><b>${data.kneeServo}</b>Lutut</div>` : `
+      <div class="box"><b>-</b>Pinggul</div>
+      <div class="box"><b>-</b>Lutut</div>`;
+  }
+
+  function restoreMats(){
+    selectable.forEach(o=>{ if(originalMats.has(o)) o.material = originalMats.get(o); });
+  }
+
+  function selectLeg(data){
+    selectedLeg = data.leg;
+    restoreMats();
+    selectable.forEach(o=>{ if(o.userData && o.userData.leg === data.leg) o.material = mat.blueGlow; });
+    updatePanel(data);
+  }
+
+  window.clearSelection = function(){ selectedLeg=null; restoreMats(); updatePanel(null); };
+
+  renderer.domElement.addEventListener('click', e=>{
+    if(Math.abs(e.movementX)>2 || Math.abs(e.movementY)>2) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX-rect.left)/rect.width)*2-1;
+    mouse.y = -((e.clientY-rect.top)/rect.height)*2+1;
+    raycaster.setFromCamera(mouse,camera);
+    const hits = raycaster.intersectObjects(selectable, false);
+    if(hits.length){
+      const d = hits[0].object.userData;
+      if(d && d.leg) selectLeg(d);
+    }
+  });
+
+  window.addEventListener('resize', ()=>{
+    const w = viewer.clientWidth, h = viewer.clientHeight;
+    camera.aspect = w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h);
+  });
+
+  updateCamera();
+  document.getElementById('loading').classList.add('hide');
+
+  function animate(){
+    requestAnimationFrame(animate);
+    // tiny idle floating for visual only
+    moka.rotation.z = Math.sin(Date.now()*0.0012)*0.012;
+    renderer.render(scene,camera);
+  }
+  animate();
+})();
+</script>
+</body>
+</html>
