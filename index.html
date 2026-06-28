@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Moka Voice Remote V3A3</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    :root {
+      --bg1: #111827;
+      --bg2: #1e1b4b;
+      --card: rgba(255,255,255,0.96);
+      --muted: #64748b;
+      --text: #0f172a;
+      --green: #00b894;
+      --purple: #7c3aed;
+      --blue: #2563eb;
+      --orange: #f59e0b;
+      --red: #ef4444;
+      --dark: #475569;
+      --cyan: #0891b2;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(124,58,237,.45), transparent 34%),
+        radial-gradient(circle at top right, rgba(37,99,235,.42), transparent 30%),
+        linear-gradient(145deg, var(--bg2), var(--bg1));
+      min-height: 100vh;
+      padding: 18px;
+    }
+
+    .app {
+      max-width: 840px;
+      margin: auto;
+    }
+
+    .hero {
+      color: white;
+      text-align: center;
+      padding: 18px 8px 12px;
+    }
+
+    .hero h1 {
+      font-size: 42px;
+      margin: 0 0 6px;
+      letter-spacing: .4px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: #dbeafe;
+      font-size: 14px;
+    }
+
+    .pill {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(255,255,255,.14);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 999px;
+      margin-top: 14px;
+      color: white;
+      font-size: 13px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #94a3b8;
+      box-shadow: 0 0 0 rgba(0,184,148,0);
+    }
+
+    .dot.on {
+      background: var(--green);
+      box-shadow: 0 0 16px rgba(0,184,148,.9);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,.55);
+      border-radius: 24px;
+      padding: 18px;
+      margin: 14px 0;
+      box-shadow: 0 18px 45px rgba(0,0,0,.28);
+      backdrop-filter: blur(12px);
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .sub {
+      margin: -6px 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .statusBox {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 12px;
+      margin: 10px 0;
+      min-height: 42px;
+      line-height: 1.4;
+    }
+
+    label {
+      display: block;
+      text-align: left;
+      color: var(--muted);
+      font-size: 13px;
+      margin: 8px 0 6px;
+    }
+
+    input, select {
+      width: 100%;
+      font-size: 16px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      border: 1px solid #cbd5e1;
+      outline: none;
+      background: white;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--purple);
+      box-shadow: 0 0 0 3px rgba(124,58,237,.15);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 10px;
+    }
+
+    .teachGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      align-items: end;
+    }
+
+    button {
+      border: 0;
+      border-radius: 16px;
+      color: white;
+      font-weight: 800;
+      font-size: 16px;
+      padding: 15px 12px;
+      cursor: pointer;
+      box-shadow: 0 7px 16px rgba(0,0,0,.12);
+      transition: transform .08s ease, opacity .08s ease;
+    }
+
+    button:active {
+      transform: scale(.98);
+      opacity: .9;
+    }
+
+    .voice { background: var(--purple); }
+    .ready { background: var(--orange); }
+    .time { background: var(--blue); }
+    .stand { background: var(--green); }
+    .rest { background: var(--dark); }
+    .move { background: var(--cyan); }
+    .pose { background: var(--orange); }
+    .stop { background: var(--red); }
+    .teach { background: #111827; }
+    .custom { background: #334155; }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 10px 0 0;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .chip {
+      background: #eef2ff;
+      color: #3730a3;
+      border: 1px solid #c7d2fe;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .footer {
+      text-align: center;
+      color: #cbd5e1;
+      font-size: 12px;
+      margin: 18px 0;
+    }
+
+
+    .targetRow {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 10px 0 6px;
+    }
+
+    .targetRow button {
+      width: 100%;
+      margin: 0;
+      padding: 12px;
+      font-size: 14px;
+      border-radius: 14px;
+      background: #334155;
+    }
+
+    .hostHint {
+      font-size: 12px;
+      line-height: 1.45;
+      color: #64748b;
+      margin-top: 8px;
+      text-align: left;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 14px;
+      padding: 10px;
+    }
+
+    @media (max-width: 620px) {
+      body { padding: 12px; }
+      .hero h1 { font-size: 32px; }
+      .grid, .teachGrid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="hero">
+      <h1>🤖 Moka Voice Remote</h1>
+      <p>GitHub Pages remote + voice control + teach mode</p>
+      <div class="pill">
+        <span id="micDot" class="dot"></span>
+        <span id="micState">Mic belum aktif</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Connection</h2>
+      <p class="sub">Buka dari GitHub Pages/HTTPS. Perangkat yang membuka halaman ini dan ESP32 harus berada di WiFi yang sama. Target bisa memakai IP static atau moka.local.</p>
+
+      <label>Target Moka</label>
+      <input id="espip" value="192.168.18.22">
+
+      <div class="targetRow">
+        <button onclick="useStaticIP()">Use Static IP</button>
+        <button onclick="useMokaLocal()">Use moka.local</button>
+      </div>
+
+      <div class="hostHint">
+        Static IP: <b>192.168.18.22</b><br>
+        mDNS: <b>moka.local</b><br>
+        Kalau tombol tidak merespon dari GitHub Pages, coba Static IP dulu.
+      </div>
+
+      <div class="grid">
+        <button class="voice" onclick="activateMoka()">AKTIFKAN MIC MOKA</button>
+        <button class="stop" onclick="sendCommand('stop')">STOP</button>
+      </div>
+
+      <div class="statusBox" id="heard">Voice text akan muncul di sini.</div>
+      <div class="statusBox" id="status">Status: siap.</div>
+    </div>
+
+    <div class="card">
+      <h2>Basic Commands</h2>
+      <div class="grid">
+        <button class="ready" onclick="sendCommand('ready')">READY</button>
+        <button class="time" onclick="sendTimePoint()">POINT JAM</button>
+        <button class="stand" onclick="sendCommand('stand')">STAND</button>
+        <button class="rest" onclick="sendCommand('rest')">REST</button>
+        <button class="ready" onclick="sendCommand('confused')">CONFUSED</button>
+        <button class="stop" onclick="sendCommand('stop')">STOP</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Pose & Movement</h2>
+      <div class="grid">
+        <button class="pose" onclick="sendCommand('wave')">WAVE / DADAH</button>
+        <button class="pose" onclick="sendCommand('dance')">DANCE</button>
+        <button class="move" onclick="sendCommand('walksoft')">WALK SOFT</button>
+        <button class="move" onclick="sendCommand('backsoft')">BACK SOFT</button>
+        <button class="move" onclick="sendCommand('leftsoft')">TURN LEFT SOFT</button>
+        <button class="move" onclick="sendCommand('rightsoft')">TURN RIGHT SOFT</button>
+        <button class="pose" onclick="sendCommand('bow')">BOW</button>
+        <button class="pose" onclick="sendCommand('shake')">SHAKE</button>
+        <button class="pose" onclick="sendCommand('cute')">CUTE</button>
+        <button class="pose" onclick="sendCommand('pushup')">PUSH UP</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Teach Mode</h2>
+      <p class="sub">Gunakan untuk membuat pose baru. Contoh voice: <b>Moka belajar pose</b>, lalu <b>kaki R1 90 derajat</b>, lalu <b>simpan pose salam</b>.</p>
+
+      <div class="grid">
+        <button class="teach" onclick="sendCommand('teachstart')">START TEACH MODE</button>
+        <button class="stop" onclick="sendCommand('teachcancel')">CANCEL TEACH</button>
+      </div>
+
+      <div class="teachGrid">
+        <div>
+          <label>Servo</label>
+          <select id="servoName">
+            <option>R1</option>
+            <option>R2</option>
+            <option>L1</option>
+            <option>L2</option>
+            <option>R3</option>
+            <option>R4</option>
+            <option>L3</option>
+            <option>L4</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Angle</label>
+          <input id="servoAngle" type="number" min="0" max="180" value="90">
+        </div>
+
+        <button class="teach" onclick="setServoManual()">SET SERVO</button>
+      </div>
+
+      <label>Nama Pose</label>
+      <input id="poseName" value="salam">
+
+      <div class="grid">
+        <button class="stand" onclick="savePoseManual()">SAVE POSE</button>
+        <button class="custom" onclick="runPoseManual()">RUN CUSTOM POSE</button>
+      </div>
+
+      <p class="small">
+        Database pose tersimpan di memori ESP32. Kapasitas awal: 5 pose custom. Kalau penuh, slot pertama akan dioverwrite.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Contoh Voice Command</h2>
+      <div class="chips">
+        <span class="chip">Moka</span>
+        <span class="chip">Moka jam berapa sekarang</span>
+        <span class="chip">Moka dadah</span>
+        <span class="chip">Moka joget</span>
+        <span class="chip">Moka jalan maju</span>
+        <span class="chip">Moka belajar pose</span>
+        <span class="chip">kaki R1 90 derajat</span>
+        <span class="chip">kaki L3 seratus dua puluh derajat</span>
+        <span class="chip">simpan pose salam</span>
+        <span class="chip">jalankan pose salam</span>
+      </div>
+    </div>
+
+    <div class="footer">Moka Voice Remote V2</div>
+  </div>
+
+  <script>
+    let recognition = null;
+    let listening = false;
+    let mokaAwakeUntil = 0;
+    let teachMode = false;
+    let pingImages = [];
+
+    function pad(n) {
+      return n.toString().padStart(2, '0');
+    }
+
+    function getBaseUrl() {
+      const ip = document.getElementById('espip').value.trim().replace(/^https?:\/\//, '');
+      return 'http://' + ip;
+    }
+
+    function setMicState(on, text) {
+      document.getElementById('micDot').className = on ? 'dot on' : 'dot';
+      document.getElementById('micState').innerHTML = text;
+    }
+
+    function sendRawUrl(url) {
+      document.getElementById('status').innerHTML = 'Mengirim: ' + url;
+
+      const img = new Image();
+      const sep = url.includes('?') ? '&' : '?';
+      img.src = url + sep + 't=' + Date.now();
+
+      pingImages.push(img);
+      if (pingImages.length > 30) pingImages.shift();
+
+      setTimeout(() => {
+        document.getElementById('status').innerHTML = 'Command terkirim.';
+      }, 300);
+    }
+
+    function sendCommand(cmd) {
+      const url = getBaseUrl() + '/cmd?c=' + encodeURIComponent(cmd);
+      sendRawUrl(url);
+    }
+
+    function sendSetServo(servo, angle) {
+      angle = Math.max(0, Math.min(180, parseInt(angle || 90)));
+      const url =
+        getBaseUrl() +
+        '/cmd?c=setservo&s=' +
+        encodeURIComponent(servo.toUpperCase()) +
+        '&a=' +
+        encodeURIComponent(angle);
+
+      sendRawUrl(url);
+    }
+
+    function sendSavePose(name) {
+      name = cleanPoseName(name);
+      const url = getBaseUrl() + '/cmd?c=savepose&name=' + encodeURIComponent(name);
+      sendRawUrl(url);
+    }
+
+    function sendCustomPose(name) {
+      name = cleanPoseName(name);
+      const url = getBaseUrl() + '/cmd?c=custom&name=' + encodeURIComponent(name);
+      sendRawUrl(url);
+    }
+
+    function sendTimePoint() {
+      const now = new Date();
+      const hh = pad(now.getHours());
+      const mm = pad(now.getMinutes());
+
+      const url = getBaseUrl() + '/cmd?c=timepoint&hh=' + hh + '&mm=' + mm;
+      sendRawUrl(url);
+
+      document.getElementById('heard').innerHTML = 'Jam sekarang: ' + hh + ':' + mm;
+    }
+
+    function setServoManual() {
+      const servo = document.getElementById('servoName').value;
+      const angle = document.getElementById('servoAngle').value;
+      sendSetServo(servo, angle);
+    }
+
+    function savePoseManual() {
+      const name = document.getElementById('poseName').value;
+      sendSavePose(name);
+    }
+
+    function runPoseManual() {
+      const name = document.getElementById('poseName').value;
+      sendCustomPose(name);
+    }
+
+    function activateMoka() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const heard = document.getElementById('heard');
+      const status = document.getElementById('status');
+
+      if (!SR) {
+        heard.innerHTML = 'Browser tidak support SpeechRecognition. Pakai Google Chrome.';
+        return;
+      }
+
+      recognition = new SR();
+      recognition.lang = 'id-ID';
+      recognition.continuous = true;
+      recognition.interimResults = false;
+
+      listening = true;
+      setMicState(true, 'Mic aktif');
+
+      heard.innerHTML = 'Mic aktif. Ucapkan: Moka';
+      status.innerHTML = 'Moka standby...';
+
+      recognition.onresult = function(event) {
+        let last = event.results.length - 1;
+        let text = event.results[last][0].transcript.toLowerCase().trim();
+
+        heard.innerHTML = 'Terdengar: ' + text;
+        processVoice(text);
+      };
+
+      recognition.onerror = function(event) {
+        status.innerHTML = 'Voice error: ' + event.error;
+
+        if (event.error === 'no-speech') {
+          restartRecognition();
+        }
+
+        if (event.error === 'not-allowed') {
+          setMicState(false, 'Mic ditolak');
+          status.innerHTML = 'Izin mic ditolak. Izinkan microphone di Chrome.';
+        }
+      };
+
+      recognition.onend = function() {
+        if (listening) {
+          restartRecognition();
+        }
+      };
+
+      try {
+        recognition.start();
+      } catch (e) {
+        status.innerHTML = 'Recognition sudah aktif / gagal start.';
+      }
+    }
+
+    function restartRecognition() {
+      if (!listening || !recognition) return;
+
+      setTimeout(() => {
+        try {
+          recognition.start();
+        } catch (e) {
+          // abaikan kalau masih aktif
+        }
+      }, 500);
+    }
+
+    function wakeMoka() {
+      mokaAwakeUntil = Date.now() + 9000;
+
+      document.getElementById('status').innerHTML =
+        'Moka: Yaa, wassup? Menunggu perintah 9 detik...';
+
+      sendCommand('ready');
+    }
+
+    function isMokaAwake() {
+      return Date.now() < mokaAwakeUntil;
+    }
+
+    function cleanPoseName(name) {
+      name = (name || '').toLowerCase().trim();
+      name = name.replace(/^(namanya|nama pose|pose)\s+/g, '');
+      name = name.replace(/[^a-z0-9 _-]/g, '');
+      name = name.replace(/\s+/g, ' ');
+      if (!name) name = 'pose';
+      return name;
+    }
+
+    function detectServo(text) {
+      const pairs = [
+        ['R1', ['r1', 'r 1', 'er 1', 'er satu', 'r satu']],
+        ['R2', ['r2', 'r 2', 'er 2', 'er dua', 'r dua']],
+        ['R3', ['r3', 'r 3', 'er 3', 'er tiga', 'r tiga']],
+        ['R4', ['r4', 'r 4', 'er 4', 'er empat', 'r empat']],
+        ['L1', ['l1', 'l 1', 'el 1', 'el satu', 'l satu']],
+        ['L2', ['l2', 'l 2', 'el 2', 'el dua', 'l dua']],
+        ['L3', ['l3', 'l 3', 'el 3', 'el tiga', 'l tiga']],
+        ['L4', ['l4', 'l 4', 'el 4', 'el empat', 'l empat']]
+      ];
+
+      for (const [servo, keys] of pairs) {
+        for (const key of keys) {
+          if (text.includes(key)) return servo;
+        }
+      }
+
+      return null;
+    }
+
+    function wordToNumber(text) {
+      text = text.toLowerCase();
+      text = text.replace(/derajat/g, '');
+      text = text.replace(/kaki|servo|sudut|angle/g, '');
+      text = text.trim();
+
+      const direct = {
+        'nol': 0, 'satu': 1, 'dua': 2, 'tiga': 3, 'empat': 4,
+        'lima': 5, 'enam': 6, 'tujuh': 7, 'delapan': 8, 'sembilan': 9,
+        'sepuluh': 10, 'sebelas': 11, 'dua belas': 12, 'tiga belas': 13,
+        'empat belas': 14, 'lima belas': 15, 'enam belas': 16,
+        'tujuh belas': 17, 'delapan belas': 18, 'sembilan belas': 19,
+        'seratus': 100
+      };
+
+      for (const phrase in direct) {
+        if (text.includes(phrase)) return direct[phrase];
+      }
+
+      const ones = {
+        'satu': 1, 'dua': 2, 'tiga': 3, 'empat': 4, 'lima': 5,
+        'enam': 6, 'tujuh': 7, 'delapan': 8, 'sembilan': 9
+      };
+
+      // seratus dua puluh, seratus delapan puluh, dll
+      if (text.includes('seratus')) {
+        let value = 100;
+        for (const w in ones) {
+          if (text.includes(w + ' puluh')) value = 100 + ones[w] * 10;
+        }
+        for (const w in ones) {
+          if (text.endsWith(' ' + w) || text.includes('puluh ' + w)) value += ones[w];
+        }
+        return value;
+      }
+
+      // sembilan puluh, empat puluh lima, dll
+      for (const w in ones) {
+        if (text.includes(w + ' puluh')) {
+          let value = ones[w] * 10;
+          for (const w2 in ones) {
+            if (text.includes('puluh ' + w2)) value += ones[w2];
+          }
+          return value;
+        }
+      }
+
+      return null;
+    }
+
+    function detectAngle(text) {
+      let nums = text.match(/\b(0|[1-9][0-9]?|1[0-7][0-9]|180)\b/g);
+      if (nums && nums.length > 0) {
+        let value = parseInt(nums[nums.length - 1]);
+        if (value >= 0 && value <= 180) return value;
+      }
+
+      let wordValue = wordToNumber(text);
+      if (wordValue !== null && wordValue >= 0 && wordValue <= 180) {
+        return wordValue;
+      }
+
+      return null;
+    }
+
+    function parseSavePoseName(text) {
+      let patterns = [
+        'simpan pose',
+        'save pose',
+        'simpan namanya',
+        'namanya',
+        'nama pose'
+      ];
+
+      for (const p of patterns) {
+        let idx = text.indexOf(p);
+        if (idx >= 0) {
+          return cleanPoseName(text.substring(idx + p.length));
+        }
+      }
+
+      return '';
+    }
+
+    function parseRunPoseName(text) {
+      let patterns = [
+        'jalankan pose',
+        'lakukan pose',
+        'mainkan pose',
+        'pose'
+      ];
+
+      for (const p of patterns) {
+        let idx = text.indexOf(p);
+        if (idx >= 0) {
+          let name = cleanPoseName(text.substring(idx + p.length));
+          if (name && name !== 'pose') return name;
+        }
+      }
+
+      return '';
+    }
+
+    function processVoice(text) {
+      const status = document.getElementById('status');
+
+      let wake =
+        text.includes('moka') ||
+        text.includes('moca') ||
+        text.includes('mocha') ||
+        text.includes('mocca') ||
+        text.includes('mau kah') ||
+        text.includes('moga') ||
+        text.includes('boka') ||
+        text.includes('muka') ||
+        text.includes('boga') ||
+        text.includes('moka robot');
+
+      let askTime =
+        text.includes('jam') ||
+        text.includes('berapa') ||
+        text.includes('sekarang') ||
+        text.includes('waktu');
+
+      let cmdStand = text.includes('stand') || text.includes('berdiri');
+      let cmdRest = text.includes('tidur') || text.includes('rest') || text.includes('istirahat');
+      let cmdStop = text.includes('stop') || text.includes('berhenti');
+      let cmdWave = text.includes('dadah') || text.includes('wave') || text.includes('lambaikan') || text.includes('melambai');
+      let cmdDance = text.includes('dance') || text.includes('joget') || text.includes('menari');
+      let cmdWalk = text.includes('jalan maju') || text.includes('maju') || text.includes('jalan');
+      let cmdBack = text.includes('mundur') || text.includes('jalan mundur');
+      let cmdLeft = text.includes('belok kiri') || text.includes('kiri');
+      let cmdRight = text.includes('belok kanan') || text.includes('kanan');
+      let cmdBow = text.includes('bow') || text.includes('bungkuk') || text.includes('membungkuk') || text.includes('hormat');
+      let cmdShake = text.includes('shake') || text.includes('goyang');
+      let cmdCute = text.includes('cute') || text.includes('lucu') || text.includes('imut');
+      let cmdPushup = text.includes('push up') || text.includes('pushup');
+      let cmdTeach = text.includes('belajar pose') || text.includes('buat pose baru') || text.includes('mode belajar') || text.includes('teach mode');
+      let cmdCancelTeach = text.includes('batal belajar') || text.includes('cancel teach') || text.includes('batalkan pose');
+
+      const servo = detectServo(text);
+      const angle = detectAngle(text);
+      const saveName = parseSavePoseName(text);
+      const runName = parseRunPoseName(text);
+
+      // Wake word saja
+      if (
+        wake &&
+        !askTime && !cmdStand && !cmdRest && !cmdStop && !cmdWave && !cmdDance &&
+        !cmdWalk && !cmdBack && !cmdLeft && !cmdRight && !cmdBow && !cmdShake &&
+        !cmdCute && !cmdPushup && !cmdTeach && !cmdCancelTeach &&
+        !servo && !saveName && !runName
+      ) {
+        wakeMoka();
+        return;
+      }
+
+      if (wake || isMokaAwake() || teachMode) {
+        if (wake && !isMokaAwake()) wakeMoka();
+
+        if (cmdTeach) {
+          teachMode = true;
+          status.innerHTML = 'Teach mode aktif. Ucapkan: kaki R1 90 derajat';
+          sendCommand('teachstart');
+          return;
+        }
+
+        if (cmdCancelTeach) {
+          teachMode = false;
+          status.innerHTML = 'Teach mode dibatalkan';
+          sendCommand('teachcancel');
+          return;
+        }
+
+        if (servo && angle !== null) {
+          teachMode = true;
+          status.innerHTML = 'Teach: ' + servo + ' = ' + angle + ' derajat';
+          sendSetServo(servo, angle);
+          return;
+        }
+
+        if (saveName) {
+          teachMode = false;
+          status.innerHTML = 'Simpan pose: ' + saveName;
+          sendSavePose(saveName);
+          return;
+        }
+
+        if (runName && !cmdTeach) {
+          teachMode = false;
+          status.innerHTML = 'Jalankan pose custom: ' + runName;
+          sendCustomPose(runName);
+          return;
+        }
+
+        if (askTime) {
+          status.innerHTML = 'Command dikenali: jam berapa sekarang';
+          setTimeout(() => sendTimePoint(), wake ? 600 : 0);
+          return;
+        }
+
+        if (cmdWave) { status.innerHTML = 'Command dikenali: WAVE'; sendCommand('wave'); return; }
+        if (cmdDance) { status.innerHTML = 'Command dikenali: DANCE'; sendCommand('dance'); return; }
+        if (cmdBack) { status.innerHTML = 'Command dikenali: BACK SOFT'; sendCommand('backsoft'); return; }
+        if (cmdLeft) { status.innerHTML = 'Command dikenali: LEFT SOFT'; sendCommand('leftsoft'); return; }
+        if (cmdRight) { status.innerHTML = 'Command dikenali: RIGHT SOFT'; sendCommand('rightsoft'); return; }
+        if (cmdWalk) { status.innerHTML = 'Command dikenali: WALK SOFT'; sendCommand('walksoft'); return; }
+        if (cmdBow) { status.innerHTML = 'Command dikenali: BOW'; sendCommand('bow'); return; }
+        if (cmdShake) { status.innerHTML = 'Command dikenali: SHAKE'; sendCommand('shake'); return; }
+        if (cmdCute) { status.innerHTML = 'Command dikenali: CUTE'; sendCommand('cute'); return; }
+        if (cmdPushup) { status.innerHTML = 'Command dikenali: PUSH UP'; sendCommand('pushup'); return; }
+        if (cmdStand) { teachMode = false; status.innerHTML = 'Command dikenali: STAND'; sendCommand('stand'); return; }
+        if (cmdRest) { teachMode = false; status.innerHTML = 'Command dikenali: REST'; sendCommand('rest'); return; }
+        if (cmdStop) { teachMode = false; status.innerHTML = 'Command dikenali: STOP'; sendCommand('stop'); return; }
+
+        status.innerHTML = 'Moka bingung: command belum dikenali';
+        sendCommand('confused');
+        return;
+      }
+
+      status.innerHTML = 'Menunggu wake word: Moka';
+    }
+  </script>
+</body>
+</html>
