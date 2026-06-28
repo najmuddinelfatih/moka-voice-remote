@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moka V3G Pose Studio</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#131b2e; --card2:#17233a; --text:#f8fafc; --muted:#94a3b8;
+      --accent:#ffd166; --blue:#38bdf8; --green:#22c55e; --red:#ef4444; --purple:#a855f7; --orange:#fb923c;
+      --line:rgba(255,255,255,.11);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial, sans-serif;background:radial-gradient(circle at top,#1e2b4a 0%,var(--bg) 45%,#050816 100%);color:var(--text);padding:16px}
+    .wrap{max-width:1100px;margin:0 auto}
+    .hero{background:linear-gradient(135deg,#1d2b4f,#111827);padding:18px;border-radius:22px;border:1px solid var(--line);box-shadow:0 18px 45px rgba(0,0,0,.25);margin-bottom:14px}
+    h1{margin:0 0 6px;font-size:30px;color:var(--accent)}
+    h2{font-size:18px;margin:0 0 12px;color:#e2e8f0}
+    p{color:var(--muted);line-height:1.45;margin:7px 0}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .card{background:rgba(19,27,46,.92);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 12px 30px rgba(0,0,0,.18)}
+    label{display:block;font-size:13px;color:#cbd5e1;margin-top:10px;margin-bottom:5px}
+    input,select,textarea{width:100%;border:none;border-radius:10px;padding:11px;background:#0b1221;color:var(--text);outline:1px solid rgba(255,255,255,.08)}
+    input[type=range]{padding:0;outline:none;background:transparent}
+    button{border:none;border-radius:11px;padding:11px 12px;margin:4px 3px;font-weight:700;cursor:pointer;color:#06121f;background:var(--accent)}
+    button:hover{filter:brightness(1.08)}
+    button.blue{background:var(--blue)} button.green{background:var(--green)} button.red{background:var(--red);color:white} button.purple{background:var(--purple);color:white} button.orange{background:var(--orange)} button.dark{background:#334155;color:white}
+    .row{display:grid;grid-template-columns:50px 1fr 64px;gap:10px;align-items:center;background:rgba(255,255,255,.04);padding:8px;border-radius:12px;margin:6px 0}
+    .row b{color:#e2e8f0}.value{text-align:center;color:var(--accent);font-weight:700}
+    .btnrow{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+    .status{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.pill{background:#0b1221;border:1px solid var(--line);border-radius:12px;padding:10px}.pill small{display:block;color:var(--muted);font-size:11px}.pill b{font-size:14px;color:#f8fafc}
+    #log{height:230px;overflow:auto;background:#050816;border:1px solid var(--line);border-radius:12px;padding:10px;font-family:Consolas,monospace;font-size:12px;white-space:pre-wrap;color:#cbd5e1}
+    table{width:100%;border-collapse:collapse;font-size:13px} th,td{border-bottom:1px solid var(--line);padding:8px;text-align:left} th{color:var(--accent)}
+    .mini{font-size:12px;color:var(--muted)}
+    .poseList button{padding:7px 9px;font-size:12px;margin:2px}.dangerText{color:#fca5a5}.okText{color:#86efac}
+    @media(max-width:850px){.grid{grid-template-columns:1fr}.status{grid-template-columns:1fr 1fr}.hero h1{font-size:25px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>🤖 Moka V3G Pose Studio</h1>
+    <p>Bikin pose dan animasi Moka dari browser. Jalur kontrol: GitHub Pages → MQTT Cloud → ESP32 Moka.</p>
+    <div class="status">
+      <div class="pill"><small>MQTT</small><b id="mqttStatus">Disconnected</b></div>
+      <div class="pill"><small>Moka Status</small><b id="mokaStatus">-</b></div>
+      <div class="pill"><small>Mood</small><b id="mokaMood">-</b></div>
+      <div class="pill"><small>Last RX</small><b id="lastRx">-</b></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1) Koneksi Cloud</h2>
+      <label>MQTT WSS URL</label>
+      <input id="mqttUrl" value="wss://035dda38e38748bcb5964e620ecd52cb.s1.eu.hivemq.cloud:8884/mqtt" />
+      <label>Username</label>
+      <input id="mqttUser" value="moka-robot01" />
+      <label>Password</label>
+      <input id="mqttPass" type="password" placeholder="Isi password HiveMQ" />
+      <div class="btnrow">
+        <button class="green" onclick="connectMQTT()">CONNECT</button>
+        <button class="red" onclick="disconnectMQTT()">DISCONNECT</button>
+        <button class="blue" onclick="sendCommand('ping')">PING</button>
+      </div>
+      <div class="btnrow">
+        <button class="dark" onclick="sendCommand('rest')">REST</button>
+        <button class="green" onclick="sendCommand('stand')">STAND</button>
+        <button class="purple" onclick="sendCommand('ready')">READY</button>
+        <button class="orange" onclick="sendCommand('wakeup')">WAKE UP</button>
+        <button class="red" onclick="sendCommand('stop')">STOP</button>
+      </div>
+      <p class="mini">Tips aman: sebelum eksperimen pose baru, klik REST lalu STAND. Geser servo pelan-pelan, jangan langsung ekstrem.</p>
+    </div>
+
+    <div class="card">
+      <h2>2) Preset Cepat</h2>
+      <div class="btnrow">
+        <button onclick="loadPreset('rest')">Load REST</button>
+        <button class="green" onclick="loadPreset('stand')">Load STAND</button>
+        <button class="purple" onclick="loadPreset('ready')">Load READY</button>
+        <button class="blue" onclick="loadPreset('teach')">Load TEACH</button>
+        <button class="orange" onclick="loadPreset('cute')">Load CUTE</button>
+      </div>
+      <label>Move duration (ms)</label>
+      <input id="moveMs" type="number" value="700" min="100" max="5000" />
+      <label>Hold duration (ms)</label>
+      <input id="holdMs" type="number" value="500" min="0" max="10000" />
+      <div class="btnrow">
+        <button class="blue" onclick="sendCurrentPose()">KIRIM POSE INI</button>
+        <button class="green" onclick="startTeach()">START TEACH</button>
+      </div>
+      <p class="mini">Tombol “KIRIM POSE INI” mengirim 8 sudut servo sekaligus dengan command <b>setpose</b>.</p>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="card">
+      <h2>3) Live Servo Sliders</h2>
+      <div id="sliders"></div>
+      <div class="btnrow">
+        <button onclick="nudgeAll(-5)" class="dark">Semua -5</button>
+        <button onclick="nudgeAll(5)" class="dark">Semua +5</button>
+        <button onclick="copyAngles()" class="blue">COPY ANGLES</button>
+      </div>
+      <p class="mini">Urutan servo: R1, R2, L1, L2, R4, R3, L3, L4.</p>
+    </div>
+
+    <div class="card">
+      <h2>4) Simpan Pose</h2>
+      <label>Nama pose</label>
+      <input id="poseName" placeholder="contoh: salam, ngantuk, hero" />
+      <div class="btnrow">
+        <button class="green" onclick="savePoseLocal()">SAVE KE BROWSER</button>
+        <button class="purple" onclick="savePoseESP()">SAVE KE ESP32</button>
+      </div>
+      <p class="mini">Save ke browser untuk animasi/timeline. Save ke ESP32 memakai database pose internal Moka.</p>
+      <div class="poseList" id="poseList"></div>
+      <hr style="border-color:var(--line);border-style:solid none none;margin:14px 0">
+      <label>Run pose ESP32 by name</label>
+      <input id="espPoseName" placeholder="nama pose yang tersimpan di ESP32" />
+      <button class="orange" onclick="runPoseESP()">RUN POSE ESP32</button>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="card">
+      <h2>5) Animation Composer</h2>
+      <label>Pilih pose browser</label>
+      <select id="timelinePose"></select>
+      <label>Move ms</label>
+      <input id="timelineMove" type="number" value="700" />
+      <label>Hold ms</label>
+      <input id="timelineHold" type="number" value="700" />
+      <div class="btnrow">
+        <button class="green" onclick="addTimelineStep()">ADD STEP</button>
+        <button class="blue" onclick="playTimeline(false)">PLAY 1X</button>
+        <button class="purple" onclick="playTimeline(true)">LOOP PLAY</button>
+        <button class="red" onclick="stopTimeline()">STOP PLAY</button>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Pose</th><th>Move</th><th>Hold</th><th>Aksi</th></tr></thead>
+        <tbody id="timelineBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>6) Export / Import</h2>
+      <div class="btnrow">
+        <button class="blue" onclick="exportStudio()">EXPORT JSON</button>
+        <button class="green" onclick="importStudio()">IMPORT JSON</button>
+        <button class="red" onclick="clearStudio()">CLEAR DATA</button>
+      </div>
+      <label>Data Pose Studio</label>
+      <textarea id="studioJson" rows="12" placeholder="Export/import pose & timeline di sini"></textarea>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>Log MQTT</h2>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+const TOPIC_COMMAND = 'moka/v1/command';
+const TOPIC_STATUS = 'moka/v1/status';
+const servoNames = ['R1','R2','L1','L2','R4','R3','L3','L4'];
+const presets = {
+  rest:  [90,90,90,90,90,90,90,90],
+  stand: [135,45,45,135,0,180,0,180],
+  ready: [120,60,45,120,70,160,0,180],
+  teach: [135,45,45,135,20,160,20,160],
+  cute:  [120,60,55,120,50,150,50,150]
+};
+let currentPose = [...presets.stand];
+let savedPoses = JSON.parse(localStorage.getItem('moka_v3g_saved_poses') || '{}');
+let timeline = JSON.parse(localStorage.getItem('moka_v3g_timeline') || '[]');
+let client = null;
+let playing = false;
+
+function log(msg){
+  const box=document.getElementById('log');
+  const t=new Date().toLocaleTimeString();
+  box.textContent += `[${t}] ${msg}\n`;
+  box.scrollTop=box.scrollHeight;
+}
+function setText(id,txt){document.getElementById(id).textContent=txt;}
+function saveLocal(){
+  localStorage.setItem('moka_v3g_saved_poses', JSON.stringify(savedPoses));
+  localStorage.setItem('moka_v3g_timeline', JSON.stringify(timeline));
+}
+function cleanName(name){
+  return (name||'').trim().toLowerCase().replace(/[^a-z0-9_\-]/g,'_').replace(/_+/g,'_').slice(0,18);
+}
+function renderSliders(){
+  const root=document.getElementById('sliders'); root.innerHTML='';
+  servoNames.forEach((name,i)=>{
+    const row=document.createElement('div'); row.className='row';
+    row.innerHTML=`<b>${name}</b><input type="range" min="0" max="180" value="${currentPose[i]}" id="s_${name}" oninput="sliderChanged(${i},this.value)"><span class="value" id="v_${name}">${currentPose[i]}°</span>`;
+    root.appendChild(row);
+  });
+}
+function sliderChanged(i,val){
+  currentPose[i]=parseInt(val,10);
+  document.getElementById('v_'+servoNames[i]).textContent=currentPose[i]+'°';
+}
+function updateSliders(){
+  servoNames.forEach((name,i)=>{
+    const s=document.getElementById('s_'+name); const v=document.getElementById('v_'+name);
+    if(s) s.value=currentPose[i]; if(v) v.textContent=currentPose[i]+'°';
+  });
+}
+function renderPoseList(){
+  const root=document.getElementById('poseList'); root.innerHTML='';
+  const names=Object.keys(savedPoses).sort();
+  if(names.length===0){root.innerHTML='<p class="mini">Belum ada pose tersimpan di browser.</p>';}
+  names.forEach(name=>{
+    const div=document.createElement('div');
+    div.innerHTML=`<b>${name}</b> <span class="mini">[${savedPoses[name].join(', ')}]</span><br>
+      <button onclick="loadSavedPose('${name}')">LOAD</button>
+      <button class="blue" onclick="runSavedPose('${name}')">RUN</button>
+      <button class="red" onclick="deleteSavedPose('${name}')">DELETE</button>`;
+    div.style.borderBottom='1px solid var(--line)'; div.style.padding='8px 0';
+    root.appendChild(div);
+  });
+  const select=document.getElementById('timelinePose'); select.innerHTML='';
+  names.forEach(name=>{const o=document.createElement('option'); o.value=name; o.textContent=name; select.appendChild(o);});
+}
+function renderTimeline(){
+  const body=document.getElementById('timelineBody'); body.innerHTML='';
+  timeline.forEach((step,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${i+1}</td><td>${step.name}</td><td>${step.moveMs}</td><td>${step.holdMs}</td><td><button onclick="runTimelineStep(${i})">RUN</button><button class="red" onclick="deleteTimelineStep(${i})">X</button></td>`;
+    body.appendChild(tr);
+  });
+}
+function connectMQTT(){
+  const url=document.getElementById('mqttUrl').value.trim();
+  const username=document.getElementById('mqttUser').value.trim();
+  const password=document.getElementById('mqttPass').value;
+  if(!password){alert('Isi password MQTT dulu.');return;}
+  const clientId='moka_pose_studio_'+Math.random().toString(16).slice(2,10);
+  client=mqtt.connect(url,{clientId,username,password,clean:true,reconnectPeriod:3000,connectTimeout:8000});
+  log('Connecting MQTT... '+url);
+  client.on('connect',()=>{
+    setText('mqttStatus','Connected'); log('MQTT connected');
+    client.subscribe(TOPIC_STATUS, err=>{ if(err) log('Subscribe error'); else log('Subscribe '+TOPIC_STATUS); });
+  });
+  client.on('message',(topic,message)=>{
+    const msg=message.toString(); log('RX '+topic+': '+msg); setText('lastRx',new Date().toLocaleTimeString());
+    try{ const j=JSON.parse(msg); if(j.status) setText('mokaStatus',j.status); if(j.current) setText('mokaStatus',j.current); if(j.mood) setText('mokaMood',j.mood); }catch(e){}
+  });
+  client.on('error',err=>{setText('mqttStatus','Error');log('MQTT error: '+err.message);});
+  client.on('close',()=>{setText('mqttStatus','Disconnected');});
+  client.on('reconnect',()=>{setText('mqttStatus','Reconnecting');});
+}
+function disconnectMQTT(){ if(client){client.end();client=null;} setText('mqttStatus','Disconnected'); log('Disconnected'); }
+function publish(obj){
+  if(!client || !client.connected){alert('MQTT belum connect.');return false;}
+  const payload=JSON.stringify({...obj, from:'pose-studio', ts:new Date().toISOString()});
+  client.publish(TOPIC_COMMAND,payload);
+  log('TX '+TOPIC_COMMAND+': '+payload);
+  return true;
+}
+function sendCommand(cmd){ publish({cmd}); }
+function startTeach(){ publish({cmd:'teachstart'}); }
+function loadPreset(name){ currentPose=[...presets[name]]; updateSliders(); log('Load preset '+name+': '+currentPose.join(',')); }
+function sendCurrentPose(){
+  const moveMs=parseInt(document.getElementById('moveMs').value||700,10);
+  const holdMs=parseInt(document.getElementById('holdMs').value||500,10);
+  publish({cmd:'setpose', angles:currentPose.join(','), moveMs, holdMs});
+}
+function savePoseLocal(){
+  const name=cleanName(document.getElementById('poseName').value);
+  if(!name){alert('Isi nama pose dulu.');return;}
+  savedPoses[name]=[...currentPose]; saveLocal(); renderPoseList(); log('Saved local pose: '+name);
+}
+function savePoseESP(){
+  const name=cleanName(document.getElementById('poseName').value);
+  if(!name){alert('Isi nama pose dulu.');return;}
+  if(!publish({cmd:'setpose', angles:currentPose.join(','), moveMs:700, holdMs:300})) return;
+  setTimeout(()=>publish({cmd:'savepose', name}), 1200);
+  log('Save ESP32 pose requested: '+name);
+}
+function runPoseESP(){
+  const name=cleanName(document.getElementById('espPoseName').value);
+  if(!name){alert('Isi nama pose ESP32.');return;}
+  publish({cmd:'custom', name});
+}
+function loadSavedPose(name){ currentPose=[...savedPoses[name]]; updateSliders(); document.getElementById('poseName').value=name; }
+function runSavedPose(name){
+  if(!savedPoses[name]) return;
+  const moveMs=parseInt(document.getElementById('moveMs').value||700,10);
+  const holdMs=parseInt(document.getElementById('holdMs').value||500,10);
+  publish({cmd:'setpose', angles:savedPoses[name].join(','), moveMs, holdMs});
+}
+function deleteSavedPose(name){ if(confirm('Hapus pose '+name+'?')){delete savedPoses[name]; saveLocal(); renderPoseList();}}
+function nudgeAll(delta){ currentPose=currentPose.map(v=>Math.max(0,Math.min(180,v+delta))); updateSliders(); }
+function copyAngles(){ navigator.clipboard && navigator.clipboard.writeText(currentPose.join(',')); log('Angles copied: '+currentPose.join(',')); }
+function addTimelineStep(){
+  const name=document.getElementById('timelinePose').value;
+  if(!name || !savedPoses[name]){alert('Belum ada pose browser yang dipilih.');return;}
+  const moveMs=parseInt(document.getElementById('timelineMove').value||700,10);
+  const holdMs=parseInt(document.getElementById('timelineHold').value||700,10);
+  timeline.push({name,moveMs,holdMs}); saveLocal(); renderTimeline();
+}
+function deleteTimelineStep(i){ timeline.splice(i,1); saveLocal(); renderTimeline(); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+async function runTimelineStep(i){
+  const step=timeline[i]; if(!step || !savedPoses[step.name]) return;
+  publish({cmd:'setpose', angles:savedPoses[step.name].join(','), moveMs:step.moveMs, holdMs:step.holdMs});
+  await sleep(step.moveMs+step.holdMs+350);
+}
+async function playTimeline(loop){
+  if(timeline.length===0){alert('Timeline masih kosong.');return;}
+  playing=true; log(loop?'Loop animation started':'Animation started');
+  do{
+    for(let i=0;i<timeline.length;i++){
+      if(!playing) break;
+      await runTimelineStep(i);
+    }
+  }while(loop && playing);
+  playing=false; log('Animation stopped/done');
+}
+function stopTimeline(){ playing=false; sendCommand('stop'); }
+function exportStudio(){
+  document.getElementById('studioJson').value=JSON.stringify({savedPoses,timeline},null,2);
+}
+function importStudio(){
+  try{
+    const data=JSON.parse(document.getElementById('studioJson').value);
+    savedPoses=data.savedPoses||{}; timeline=data.timeline||[]; saveLocal(); renderPoseList(); renderTimeline(); log('Import berhasil.');
+  }catch(e){alert('JSON tidak valid.');}
+}
+function clearStudio(){
+  if(confirm('Hapus semua pose browser dan timeline?')){savedPoses={};timeline=[];saveLocal();renderPoseList();renderTimeline();}
+}
+renderSliders(); renderPoseList(); renderTimeline();
+log('Pose Studio siap. Connect MQTT lalu mulai dari STAND/TEACH.');
+</script>
+</body>
+</html>
