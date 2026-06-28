@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moka Cloud Control V3C Idle</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body{font-family:Arial,sans-serif;background:#101820;color:#fff;margin:0;padding:18px}
+    .wrap{max-width:760px;margin:auto}
+    .card{background:#1d2b36;border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+    h1,h2{margin-top:0;color:#ffd166}.muted{color:#b8c7d2;font-size:13px}.status{padding:10px;border-radius:10px;background:#0b1117;margin:10px 0}
+    label{display:block;margin-top:10px;color:#ddd;font-size:14px}input{width:100%;box-sizing:border-box;padding:10px;border:0;border-radius:8px;margin-top:5px;font-size:14px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}@media(min-width:680px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+    button{padding:13px;border:0;border-radius:10px;font-weight:700;cursor:pointer;background:#ffd166;color:#111}.blue{background:#4cc9f0}.red{background:#ef476f;color:white}.green{background:#06d6a0}.dark{background:#334756;color:white}
+    #log{background:#0b1117;padding:12px;border-radius:10px;height:230px;overflow-y:auto;font-family:monospace;font-size:13px;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>🤖 Moka Cloud Control V3C Idle</h1>
+    <div class="muted">Kontrol Moka lewat MQTT Cloud. Moka dan HP/laptop tidak harus satu WiFi, asal sama-sama ada internet.</div>
+    <div class="status">Status MQTT: <b id="status">Belum connect</b></div>
+    <label>MQTT WSS URL</label>
+    <input id="mqttUrl" value="wss://035dda38e38748bcb5964e620ecd52cb.s1.eu.hivemq.cloud:8884/mqtt">
+    <label>Username</label>
+    <input id="mqttUser" value="moka-robot01">
+    <label>Password MQTT HiveMQ</label>
+    <input id="mqttPass" type="password" placeholder="Isi password MQTT di sini">
+    <div class="grid" style="margin-top:12px">
+      <button class="green" onclick="connectMQTT()">CONNECT</button>
+      <button class="red" onclick="disconnectMQTT()">DISCONNECT</button>
+      <button class="blue" onclick="sendCommand('ping')">PING</button>
+      <button class="dark" onclick="clearLog()">CLEAR LOG</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Command Moka</h2>
+    <div class="grid">
+      <button onclick="sendCommand('rest')">REST</button>
+      <button onclick="sendCommand('stand')">STAND</button>
+      <button onclick="sendCommand('ready')">READY</button>
+      <button onclick="sendTimePoint()">JAM</button>
+      <button onclick="sendCommand('wave')">WAVE</button>
+      <button onclick="sendCommand('dance')">DANCE</button>
+      <button onclick="sendCommand('bow')">BOW</button>
+      <button onclick="sendCommand('shake')">SHAKE</button>
+      <button onclick="sendCommand('cute')">CUTE</button>
+      <button onclick="sendCommand('pushup')">PUSH UP</button>
+      <button onclick="sendCommand('confused')">CONFUSED</button>
+      <button class="red" onclick="sendCommand('stop')">STOP</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Idle Personality</h2>
+    <div class="muted">Setelah Moka berdiri dan tidak menerima command beberapa saat, ia akan kedip/lihat sekitar. Setelah lebih lama, Moka otomatis tidur/REST.</div>
+    <div class="grid" style="margin-top:12px">
+      <button class="green" onclick="sendCommand('idleon')">IDLE ON</button>
+      <button class="red" onclick="sendCommand('idleoff')">IDLE OFF</button>
+      <button class="dark" onclick="sendCommand('sleepy')">SLEEPY</button>
+      <button class="blue" onclick="sendCommand('wakeup')">WAKE UP</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div id="log"></div>
+  </div>
+</div>
+<script>
+let client=null;
+const TOPIC_COMMAND="moka/v1/command";
+const TOPIC_STATUS="moka/v1/status";
+function log(msg){const box=document.getElementById('log');const t=new Date().toLocaleTimeString();box.textContent+=`[${t}] ${msg}\n`;box.scrollTop=box.scrollHeight;}
+function clearLog(){document.getElementById('log').textContent='';}
+function setStatus(s){document.getElementById('status').textContent=s;}
+function connectMQTT(){
+  const url=document.getElementById('mqttUrl').value.trim();
+  const username=document.getElementById('mqttUser').value.trim();
+  const password=document.getElementById('mqttPass').value;
+  if(!password){alert('Isi password MQTT dulu.');return;}
+  const clientId='moka_web_'+Math.random().toString(16).slice(2,10);
+  log('Connecting MQTT: '+url);
+  client=mqtt.connect(url,{clientId,username,password,clean:true,reconnectPeriod:3000,connectTimeout:8000});
+  client.on('connect',()=>{setStatus('Connected');log('MQTT connected');client.subscribe(TOPIC_STATUS,(err)=>{if(err)log('Subscribe gagal');else log('Subscribe: '+TOPIC_STATUS);});});
+  client.on('message',(topic,message)=>{log('RX '+topic+': '+message.toString());});
+  client.on('error',(err)=>{setStatus('Error');log('MQTT error: '+err.message);});
+  client.on('close',()=>{setStatus('Disconnected');log('MQTT disconnected');});
+  client.on('reconnect',()=>{setStatus('Reconnecting...');log('MQTT reconnecting...');});
+}
+function publishPayload(payload){
+  if(!client||!client.connected){alert('MQTT belum connect. Klik CONNECT dulu.');return;}
+  client.publish(TOPIC_COMMAND,JSON.stringify(payload));
+  log('TX '+TOPIC_COMMAND+': '+JSON.stringify(payload));
+}
+function sendCommand(cmd){publishPayload({cmd,from:'github-pages-cloud-v3c-idle',time:new Date().toISOString()});}
+function pad(n){return String(n).padStart(2,'0');}
+function sendTimePoint(){const now=new Date();publishPayload({cmd:'timepoint',hh:pad(now.getHours()),mm:pad(now.getMinutes()),from:'github-pages-cloud-v3c-idle'});}
+function disconnectMQTT(){if(client){client.end();client=null;setStatus('Disconnected');log('Manual disconnect');}}
+</script>
+</body>
+</html>
