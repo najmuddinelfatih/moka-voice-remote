@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Moka 3D Pose Studio V3H Step 2B Fix2 - Axis Calibration</title>
+
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(15, 23, 42, 0.94);
+      --panel2: rgba(30, 41, 59, 0.92);
+      --line: rgba(148, 163, 184, 0.25);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --yellow: #f7b733;
+      --blue: #38bdf8;
+      --green: #22c55e;
+      --red: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at top left, #172554 0, #0b1020 38%, #020617 100%);
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+    }
+
+    #app {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+    }
+
+    #viewerWrap {
+      position: relative;
+      overflow: hidden;
+    }
+
+    #viewer {
+      position: absolute;
+      inset: 0;
+    }
+
+    #topbar {
+      position: absolute;
+      left: 16px;
+      top: 16px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .badge {
+      pointer-events: auto;
+      padding: 9px 12px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.76);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+      font-size: 13px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+
+    .badge strong { color: #fde68a; }
+
+    #loadingBox {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(520px, calc(100vw - 40px));
+      padding: 24px;
+      border-radius: 18px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid var(--line);
+      box-shadow: 0 25px 70px rgba(0,0,0,0.45);
+      z-index: 20;
+    }
+
+    #loadingTitle {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #fde68a;
+    }
+
+    #loadingText {
+      font-size: 14px;
+      line-height: 1.55;
+      color: #cbd5e1;
+      margin-bottom: 14px;
+      white-space: pre-wrap;
+    }
+
+    #progressBar {
+      width: 100%;
+      height: 9px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.22);
+      overflow: hidden;
+    }
+
+    #progressFill {
+      width: 0%;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #38bdf8, #fbbf24);
+      transition: width 180ms ease;
+    }
+
+    #labelsLayer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .label {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.76);
+      border: 1px solid rgba(255,255,255,0.16);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+      white-space: nowrap;
+    }
+
+    .label.selected {
+      background: rgba(251, 191, 36, 0.92);
+      color: #111827;
+      border-color: rgba(255,255,255,0.6);
+      text-shadow: none;
+    }
+
+    #side {
+      height: 100vh;
+      overflow-y: auto;
+      background: linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98));
+      border-left: 1px solid var(--line);
+      padding: 16px;
+      box-shadow: -18px 0 40px rgba(0,0,0,0.22);
+    }
+
+    h1 {
+      font-size: 22px;
+      line-height: 1.15;
+      margin: 4px 0 6px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    .card {
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+
+    .card h2 {
+      font-size: 15px;
+      margin: 0 0 10px;
+      color: #e2e8f0;
+    }
+
+    .statusRow {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(148,163,184,0.16);
+      font-size: 13px;
+    }
+
+    .statusRow:last-child { border-bottom: 0; }
+
+    .muted { color: var(--muted); }
+
+    .value {
+      text-align: right;
+      font-weight: 700;
+      color: #f8fafc;
+      word-break: break-word;
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 12px;
+      background: #1e293b;
+      color: white;
+      border: 1px solid rgba(255,255,255,0.12);
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 120ms ease, background 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      background: #334155;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, #f59e0b, #fbbf24);
+      color: #111827;
+      border-color: rgba(255,255,255,0.22);
+    }
+
+    button.blue {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: white;
+    }
+
+    button.green {
+      background: linear-gradient(135deg, #16a34a, #22c55e);
+      color: white;
+    }
+
+    .gridBtns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .legBtn {
+      text-align: left;
+      padding: 11px;
+      border-radius: 13px;
+      background: rgba(15,23,42,0.72);
+      border: 1px solid rgba(148,163,184,0.22);
+    }
+
+    .legBtn.active {
+      background: rgba(251,191,36,0.18);
+      border-color: rgba(251,191,36,0.85);
+      color: #fde68a;
+    }
+
+    .log {
+      height: 150px;
+      overflow-y: auto;
+      background: rgba(2,6,23,0.74);
+      border: 1px solid rgba(148,163,184,0.18);
+      border-radius: 12px;
+      padding: 10px;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      color: #cbd5e1;
+    }
+
+    .hint {
+      font-size: 12px;
+      line-height: 1.55;
+      color: #cbd5e1;
+    }
+
+    .hint strong {
+      color: #fde68a;
+    }
+
+
+    .modeBtns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .modeBtn.active {
+      background: linear-gradient(135deg, #f59e0b, #fbbf24);
+      color: #111827;
+      border-color: rgba(255,255,255,0.22);
+    }
+
+    select, input, textarea {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(15,23,42,0.88);
+      color: var(--text);
+      padding: 10px;
+      outline: none;
+      font-weight: 700;
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .smallGrid3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .smallGrid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .miniLabel {
+      margin: 10px 0 5px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .partReadout {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 12px;
+      background: rgba(2,6,23,0.5);
+      border: 1px solid rgba(148,163,184,0.18);
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      color: #cbd5e1;
+    }
+
+    .disabledBox {
+      opacity: .48;
+      pointer-events: none;
+      filter: grayscale(.2);
+    }
+
+
+
+    .sliderBox {
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(2,6,23,0.42);
+      border: 1px solid rgba(148,163,184,0.18);
+      margin-bottom: 10px;
+    }
+
+    .sliderHead {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .sliderHead strong { color: #fde68a; }
+
+    input[type="range"] {
+      padding: 0;
+      accent-color: #fbbf24;
+    }
+
+    .angleValue {
+      min-width: 54px;
+      text-align: right;
+      font-family: Consolas, monospace;
+      font-weight: 900;
+      color: #f8fafc;
+    }
+
+    .tinyBtns {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .tinyBtns button {
+      padding: 8px 6px;
+      font-size: 12px;
+      border-radius: 9px;
+    }
+
+    .poseReadout {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 12px;
+      background: rgba(2,6,23,0.5);
+      border: 1px solid rgba(148,163,184,0.18);
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      color: #cbd5e1;
+    }
+
+    .mqttStatus {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(239,68,68,0.18);
+      color: #fecaca;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .mqttStatus.ok {
+      background: rgba(34,197,94,0.18);
+      color: #bbf7d0;
+    }
+
+    @media (max-width: 900px) {
+      #app {
+        grid-template-columns: 1fr;
+        grid-template-rows: 62vh 38vh;
+      }
+
+      #side {
+        height: 38vh;
+        border-left: none;
+        border-top: 1px solid var(--line);
+      }
+
+      h1 { font-size: 18px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <div id="viewerWrap">
+      <div id="viewer"></div>
+      <div id="labelsLayer"></div>
+
+      <div id="topbar">
+        <div class="badge">🤖 <strong>Moka V3H Step 2B Fix2</strong> — Axis Calibration</div>
+        <div class="badge">Drag = rotate · Scroll = zoom · Mode 1: Posisi Part · Mode 2: Atur Pose + Pivot Visual</div>
+      </div>
+
+      <div id="loadingBox">
+        <div id="loadingTitle">Memuat model STL Moka...</div>
+        <div id="loadingText">Pastikan file HTML ini diupload bersama folder stl/ ke GitHub Pages.</div>
+        <div id="progressBar"><div id="progressFill"></div></div>
+      </div>
+    </div>
+
+    <aside id="side">
+      <h1>🧩 Moka 3D Pose Studio</h1>
+      <div class="subtitle">
+        Step 2B Fix2: revisi sumbu putar berdasarkan hasil test. R1/R2/L1/L2 memakai sumbu X, L3 memakai sumbu Y, R3/R4 tetap, dan arah L4 dibalik.
+      </div>
+
+      <div class="card">
+        <h2>Status Model</h2>
+        <div class="statusRow"><span class="muted">Loaded parts</span><span class="value" id="loadedCount">0/0</span></div>
+        <div class="statusRow"><span class="muted">Selected</span><span class="value" id="selectedName">Belum ada</span></div>
+        <div class="statusRow"><span class="muted">Mapping</span><span class="value" id="selectedMap">-</span></div>
+      </div>
+
+      <div class="card">
+        <h2>View Control</h2>
+        <div class="gridBtns">
+          <button class="primary" onclick="resetView()">Reset View</button>
+          <button onclick="toggleLabels()" id="labelBtn">Labels: ON</button>
+          <button onclick="toggleWireframe()" id="wireBtn">Wireframe: OFF</button>
+          <button class="blue" onclick="focusModel()">Focus Model</button>
+          <button onclick="togglePivots()" id="pivotBtn">Pivots: ON</button>
+        </div>
+      </div>
+
+
+      <div class="card" id="mqttCard">
+        <h2>MQTT Cloud</h2>
+        <div class="statusRow"><span class="muted">Status</span><span class="mqttStatus" id="mqttStatus">OFFLINE</span></div>
+        <div class="miniLabel">WSS URL</div>
+        <input id="mqttUrl" value="wss://035dda38e38748bcb5964e620ecd52cb.s1.eu.hivemq.cloud:8884/mqtt">
+        <div class="smallGrid2">
+          <div>
+            <div class="miniLabel">Username</div>
+            <input id="mqttUser" value="moka-robot01">
+          </div>
+          <div>
+            <div class="miniLabel">Password</div>
+            <input id="mqttPass" type="password" placeholder="Password HiveMQ">
+          </div>
+        </div>
+        <div class="smallGrid2">
+          <button class="green" onclick="connectMQTT()">CONNECT</button>
+          <button onclick="disconnectMQTT()">DISCONNECT</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Pilih Kaki</h2>
+        <div class="gridBtns">
+          <button class="legBtn" id="btn_frontRight" onclick="selectLeg('frontRight')">Kanan Depan<br><span class="muted">R1 + R3</span></button>
+          <button class="legBtn" id="btn_frontLeft" onclick="selectLeg('frontLeft')">Kiri Depan<br><span class="muted">L1 + L3</span></button>
+          <button class="legBtn" id="btn_rearRight" onclick="selectLeg('rearRight')">Kanan Belakang<br><span class="muted">R2 + R4</span></button>
+          <button class="legBtn" id="btn_rearLeft" onclick="selectLeg('rearLeft')">Kiri Belakang<br><span class="muted">L2 + L4</span></button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Mode Studio</h2>
+        <div class="modeBtns">
+          <button class="modeBtn active" id="modePartBtn" onclick="setStudioMode('part')">1. Atur Posisi Part</button>
+          <button class="modeBtn" id="modePoseBtn" onclick="setStudioMode('pose')">2. Atur Pose</button>
+        </div>
+        <div class="hint" style="margin-top:10px" id="modeHint">
+          Mode sekarang: <strong>Atur Posisi Part</strong>. Rapikan dulu posisi STL supaya mirip referensi Sesame.
+        </div>
+      </div>
+
+
+      <div class="card disabledBox" id="poseEditorCard">
+        <h2>Atur Pose Visual</h2>
+        <div class="hint">
+          Pilih kaki, lalu atur <strong>Pinggul</strong> dan <strong>Lutut</strong>. Nama R1/R2/L1/L2 tetap ditampilkan kecil sebagai referensi, tapi kontrol utamanya pakai nama manusiawi.
+        </div>
+
+        <div class="miniLabel">Pose preset</div>
+        <div class="gridBtns">
+          <button onclick="setPosePreset('rest')">REST 90°</button>
+          <button onclick="setPosePreset('stand')">STAND</button>
+          <button onclick="sendCurrentPose()" class="green">KIRIM POSE</button>
+          <button onclick="toggleLivePose()" id="livePoseBtn">LIVE: OFF</button>
+        </div>
+
+        <div class="miniLabel">Kaki yang sedang dipilih</div>
+        <div class="poseReadout" id="poseLegReadout">Pilih kaki dulu.</div>
+
+        <div class="sliderBox">
+          <div class="sliderHead"><strong id="hipLabel">Pinggul</strong><span class="angleValue" id="hipAngleText">90°</span></div>
+          <input type="range" min="0" max="180" value="90" id="hipSlider" oninput="setSelectedJointAngle('hip', this.value)">
+          <div class="tinyBtns">
+            <button onclick="adjustSelectedJoint('hip', -10)">-10</button>
+            <button onclick="adjustSelectedJoint('hip', -5)">-5</button>
+            <button onclick="adjustSelectedJoint('hip', 5)">+5</button>
+            <button onclick="adjustSelectedJoint('hip', 10)">+10</button>
+          </div>
+        </div>
+
+        <div class="sliderBox">
+          <div class="sliderHead"><strong id="kneeLabel">Lutut</strong><span class="angleValue" id="kneeAngleText">90°</span></div>
+          <input type="range" min="0" max="180" value="90" id="kneeSlider" oninput="setSelectedJointAngle('knee', this.value)">
+          <div class="tinyBtns">
+            <button onclick="adjustSelectedJoint('knee', -10)">-10</button>
+            <button onclick="adjustSelectedJoint('knee', -5)">-5</button>
+            <button onclick="adjustSelectedJoint('knee', 5)">+5</button>
+            <button onclick="adjustSelectedJoint('knee', 10)">+10</button>
+          </div>
+        </div>
+
+        <div class="smallGrid2">
+          <button onclick="resetSelectedLegPose()">Reset Kaki Ini</button>
+          <button onclick="copyPoseAngles()">Copy Angles</button>
+        </div>
+        <div class="poseReadout" id="poseReadout">Pose belum aktif.</div>
+      </div>
+
+      <div class="card" id="partEditorCard">
+        <h2>Atur Posisi Part</h2>
+
+        <div class="miniLabel">Pilih part</div>
+        <select id="partSelect" onchange="selectPart(this.value)"></select>
+
+        <div class="smallGrid2">
+          <div>
+            <div class="miniLabel">Step geser</div>
+            <input id="moveStep" type="number" value="2" step="0.5">
+          </div>
+          <div>
+            <div class="miniLabel">Step rotasi °</div>
+            <input id="rotStep" type="number" value="5" step="1">
+          </div>
+        </div>
+
+        <div class="miniLabel">Geser posisi</div>
+        <div class="smallGrid3">
+          <button onclick="adjustPart('x', -getMoveStep())">X−</button>
+          <button onclick="adjustPart('y', getMoveStep())">Y+</button>
+          <button onclick="adjustPart('z', -getMoveStep())">Z−</button>
+          <button onclick="adjustPart('x', getMoveStep())">X+</button>
+          <button onclick="adjustPart('y', -getMoveStep())">Y−</button>
+          <button onclick="adjustPart('z', getMoveStep())">Z+</button>
+        </div>
+
+        <div class="miniLabel">Putar part</div>
+        <div class="smallGrid3">
+          <button onclick="rotatePart('x', -getRotStep())">Rot X−</button>
+          <button onclick="rotatePart('y', -getRotStep())">Rot Y−</button>
+          <button onclick="rotatePart('z', -getRotStep())">Rot Z−</button>
+          <button onclick="rotatePart('x', getRotStep())">Rot X+</button>
+          <button onclick="rotatePart('y', getRotStep())">Rot Y+</button>
+          <button onclick="rotatePart('z', getRotStep())">Rot Z+</button>
+        </div>
+
+        <div class="miniLabel">Quick fix untuk kasus kebalik</div>
+        <div class="smallGrid2">
+          <button onclick="swapParts('L1','L3')">Tukar L1 ↔ L3</button>
+          <button onclick="swapParts('R2','R4')">Tukar R2 ↔ R4</button>
+        </div>
+        <div class="smallGrid2">
+          <button onclick="rotatePart('y', 90)">Rot Y +90°</button>
+          <button onclick="rotatePart('y', -90)">Rot Y -90°</button>
+        </div>
+
+        <div class="partReadout" id="partReadout">Pilih part dulu.</div>
+      </div>
+
+      <div class="card" id="layoutSaveCard">
+        <h2>Simpan / Export Layout</h2>
+        <div class="gridBtns">
+          <button class="green" onclick="saveLayoutToBrowser()">Simpan Layout</button>
+          <button onclick="loadLayoutFromBrowser()">Load Layout</button>
+          <button onclick="resetSelectedPart()">Reset Part Ini</button>
+          <button onclick="resetAllLayout()">Reset Semua</button>
+          <button class="blue" onclick="resetToLockedRestLayout()">REST Locked</button>
+          <button class="green" onclick="exportLayoutJson()">Cek JSON</button>
+        </div>
+        <div class="miniLabel">JSON layout</div>
+        <textarea id="layoutJson" placeholder="Klik Export JSON untuk melihat konfigurasi posisi part."></textarea>
+        <div class="smallGrid2">
+          <button onclick="exportLayoutJson()">Export JSON</button>
+          <button onclick="importLayoutJson()">Import JSON</button>
+        </div>
+        <div class="smallGrid2">
+          <button onclick="copyLayoutJson()">Copy JSON</button>
+          <button onclick="downloadLayoutJson()">Download JSON</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Catatan Step Ini</h2>
+        <div class="hint">
+          ✅ Sekarang ada 2 mode: <strong>Atur Posisi Part</strong> dan <strong>Atur Pose</strong>.<br>
+          ✅ Mode Atur Posisi Part dipakai untuk merapikan STL yang masih geser/kebalik.<br>
+          ✅ Klik <strong>Simpan Layout</strong> agar setting tersimpan di browser.<br>
+          ✅ Layout REST dari JSON kamu sudah dikunci sebagai default file ini.<br>
+          ✅ Tombol <strong>REST Locked</strong> mengembalikan semua part ke layout sempurna.<br>
+          ✅ Fix2 berdasarkan feedback test: <strong>R1, R2, L1, L2</strong> diubah ke sumbu X.<br>✅ <strong>L3</strong> dikembalikan ke sumbu Y.<br>✅ <strong>R3/R4</strong> dibiarkan karena sudah benar.<br>✅ <strong>L4</strong> dibalik arah putarnya.<br>⚠️ Kalau masih ada joint yang kurang pas, lanjut Step 2C: editor axis/pivot interaktif.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Log</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </aside>
+  </div>
+
+  
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <script>
+    let scene, camera, renderer, controls;
+    let modelContainer, modelRoot, gridHelper;
+    let raycaster, mouse;
+    let selectedLeg = null;
+    let selectedPartKey = null;
+    let studioMode = "part";
+    const LAYOUT_STORAGE_KEY = "moka_v3h_step2b_layout_locked_v1";
+    let labelsOn = true;
+    let wireframeOn = false;
+    let pivotsOn = true;
+
+    let mqttClient = null;
+    let livePoseOn = false;
+    let poseSendTimer = null;
+    const TOPIC_COMMAND = "moka/v1/command";
+    const TOPIC_STATUS = "moka/v1/status";
+
+    const SERVO_ORDER = ["R1", "R2", "L1", "L2", "R4", "R3", "L3", "L4"];
+    const poseAngles = { R1:90, R2:90, L1:90, L2:90, R4:90, R3:90, L3:90, L4:90 };
+
+    const LEG_JOINTS = {
+      frontRight: { label: "Kanan Depan", hip: "R1", knee: "R3", hipName: "Pinggul Kanan Depan", kneeName: "Lutut Kanan Depan" },
+      frontLeft:  { label: "Kiri Depan",  hip: "L1", knee: "L3", hipName: "Pinggul Kiri Depan",  kneeName: "Lutut Kiri Depan" },
+      rearRight:  { label: "Kanan Belakang", hip: "R2", knee: "R4", hipName: "Pinggul Kanan Belakang", kneeName: "Lutut Kanan Belakang" },
+      rearLeft:   { label: "Kiri Belakang",  hip: "L2", knee: "L4", hipName: "Pinggul Kiri Belakang",  kneeName: "Lutut Kiri Belakang" },
+    };
+
+    const loadedParts = {};
+    const labelEls = {};
+    const labelPositions = {};
+    const pivotHelpers = {};
+    let pivotGroup;
+
+    const MODEL_SCALE = 0.045;
+
+    const LOCKED_REST_LAYOUT = {
+      "version": "Moka_V3H_Step2B_Fix2_Axis_Calibration",
+      "parts": {
+        "bottom": { "p": { "x": 0, "y": 0, "z": 0 }, "r": { "x": 0, "y": -1.571, "z": 0 } },
+        "frame": { "p": { "x": 0, "y": 0, "z": 0 }, "r": { "x": 0, "y": -1.571, "z": 0 } },
+        "top": { "p": { "x": 0, "y": 0, "z": 0 }, "r": { "x": 0, "y": -1.571, "z": 0 } },
+        "R1": { "p": { "x": 44, "y": 22, "z": -20 }, "r": { "x": 0, "y": 1.571, "z": 0 } },
+        "R3": { "p": { "x": 79.5, "y": 17, "z": -33.5 }, "r": { "x": 0, "y": 1.571, "z": 0 } },
+        "R2": { "p": { "x": 44, "y": 22, "z": 20.5 }, "r": { "x": 0, "y": -1.571, "z": 0 } },
+        "R4": { "p": { "x": 80, "y": 17, "z": 34 }, "r": { "x": 0, "y": -1.571, "z": 0 } },
+        "L1": { "p": { "x": -44, "y": 22, "z": -20 }, "r": { "x": 0, "y": -4.712, "z": 0 } },
+        "L3": { "p": { "x": -80, "y": 15, "z": -34 }, "r": { "x": 0, "y": -4.712, "z": 0 } },
+        "L2": { "p": { "x": -44, "y": 22, "z": 20 }, "r": { "x": 0, "y": -1.571, "z": 0 } },
+        "L4": { "p": { "x": -79.5, "y": 17, "z": 33.5 }, "r": { "x": 0, "y": -1.571, "z": 0 } }
+      }
+    };
+
+    const BODY_CENTER_RAW = new THREE.Vector3(26.02, 0, 2.38);
+    const BODY_ROT_Y = -Math.PI / 2;
+    const LEG_PLACEMENTS = {
+      R1: { x: 44, y: 22, z: -20, ry:  Math.PI / 2 },
+      R3: { x: 79.5, y: 17, z: -33.5, ry:  Math.PI / 2 },
+      R2: { x: 44, y: 22, z:  20.5, ry: -Math.PI / 2 },
+      R4: { x: 80, y: 17, z:  34, ry: -Math.PI / 2 },
+      L1: { x: -44, y: 22, z: -20, ry: -3 * Math.PI / 2 },
+      L3: { x: -80, y: 15, z: -34, ry: -3 * Math.PI / 2 },
+      L2: { x: -44, y: 22, z:  20, ry: -Math.PI / 2 },
+      L4: { x: -79.5, y: 17, z:  33.5, ry: -Math.PI / 2 },
+    };
+
+    const STL_PARTS = [
+      { key: "bottom", name: "Bottom Cover", file: "stl/Bottom-Cover-v121.stl", color: 0x9ca3af, group: "body" },
+      { key: "frame", name: "Internal Frame", file: "stl/Internal-Frame-v121.stl", color: 0x6b7280, group: "body" },
+      { key: "top", name: "Top Cover Cat", file: "stl/top-covers/Top-Cover-Cat-v100.stl", color: 0xf7b733, group: "body" },
+      { key: "R1", name: "R1 - Kanan Depan Hip", file: "stl/R1-v117.stl", color: 0xf7b733, leg: "frontRight" },
+      { key: "R3", name: "R3 - Kanan Depan Lower", file: "stl/R3-v117.stl", color: 0xf7b733, leg: "frontRight" },
+      { key: "R2", name: "R2 - Kanan Belakang Hip", file: "stl/R2-v117.stl", color: 0xf7b733, leg: "rearRight" },
+      { key: "R4", name: "R4 - Kanan Belakang Lower", file: "stl/R4-v117.stl", color: 0xf7b733, leg: "rearRight" },
+      { key: "L1", name: "L1 - Kiri Depan Hip", file: "stl/L1-v117.stl", color: 0xf7b733, leg: "frontLeft" },
+      { key: "L3", name: "L3 - Kiri Depan Lower", file: "stl/L3-v117.stl", color: 0xf7b733, leg: "frontLeft" },
+      { key: "L2", name: "L2 - Kiri Belakang Hip", file: "stl/L2-v117.stl", color: 0xf7b733, leg: "rearLeft" },
+      { key: "L4", name: "L4 - Kiri Belakang Lower", file: "stl/L4-v117.stl", color: 0xf7b733, leg: "rearLeft" },
+    ];
+
+    const LEG_INFO = {
+      frontRight: { label: "Kanan Depan", map: "R1 + R3", parts: ["R1", "R3"] },
+      frontLeft:  { label: "Kiri Depan",  map: "L1 + L3", parts: ["L1", "L3"] },
+      rearRight:  { label: "Kanan Belakang", map: "R2 + R4", parts: ["R2", "R4"] },
+      rearLeft:   { label: "Kiri Belakang", map: "L2 + L4", parts: ["L2", "L4"] },
+    };
+
+    // Step 2B - titik pivot default dari referensi Sesame.
+    // Rotasi dilakukan pada sumbu Z (plane X-Y) dan lower leg mengikuti hip lalu knee secara berantai.
+    const JOINT_CONFIG = {
+      // STEP 2B FIX2 — hasil kalibrasi dari test user:
+      // R1/R2/L1/L2 harus berputar pada sumbu X, bukan Z.
+      // R3 dan R4 sudah benar, jadi tetap.
+      // L3 harus mengikuti sumbu Y.
+      // L4 sumbu sudah benar, hanya arahnya dibalik.
+      R1: { label: 'R1', pivot: {x: 20, y: 22, z: -20}, axis: 'x', dir: -1, gain: 1.0, color: 0xffffff },
+      R2: { label: 'R2', pivot: {x: 20, y: 22, z:  20}, axis: 'x', dir:  1, gain: 1.0, color: 0xffb6d5 },
+      L1: { label: 'L1', pivot: {x: -20, y: 22, z: -20}, axis: 'x', dir: -1, gain: 1.0, color: 0xd28cff },
+      L2: { label: 'L2', pivot: {x: -20, y: 22, z:  20}, axis: 'x', dir: -1, gain: 1.0, color: 0xff4d4d },
+      R3: { label: 'R3', pivot: {x: 62, y: 19, z: -31}, axis: 'z', dir: -1, gain: 1.0, color: 0xff8b3d },
+      R4: { label: 'R4', pivot: {x: 62, y: 19, z:  31}, axis: 'z', dir:  1, gain: 1.0, color: 0x38bdf8 },
+      L3: { label: 'L3', pivot: {x: -62, y: 19, z: -31}, axis: 'y', dir:  1, gain: 1.0, color: 0x22c55e },
+      L4: { label: 'L4', pivot: {x: -62, y: 19, z:  31}, axis: 'z', dir:  1, gain: 1.0, color: 0xf8e71c },
+    };
+
+    const PART_ROTATION_CHAIN = {
+      R1: ['R1'],
+      R3: ['R1','R3'],
+      R2: ['R2'],
+      R4: ['R2','R4'],
+      L1: ['L1'],
+      L3: ['L1','L3'],
+      L2: ['L2'],
+      L4: ['L2','L4'],
+    };
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      const t = new Date().toLocaleTimeString();
+      el.textContent += `[${t}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function setLoading(text, pct) {
+      document.getElementById('loadingText').textContent = text;
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('loadedCount').textContent = `${Math.round((pct/100)*STL_PARTS.length)}/${STL_PARTS.length}`;
+    }
+    function hideLoading() {
+      document.getElementById('loadingBox').style.display = 'none';
+      document.getElementById('loadedCount').textContent = `${STL_PARTS.length}/${STL_PARTS.length}`;
+    }
+    function showLoadingError(text) {
+      document.getElementById('loadingTitle').textContent = 'Gagal memuat model STL';
+      document.getElementById('loadingText').textContent = text;
+      document.getElementById('progressFill').style.background = '#ef4444';
+    }
+
+    function init() {
+      if (!window.THREE || !THREE.STLLoader) {
+        showLoadingError('Library Three.js / STLLoader gagal dimuat dari CDN. Coba refresh atau cek internet.');
+        return;
+      }
+      const viewer = document.getElementById('viewer');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x08111f);
+      scene.fog = new THREE.Fog(0x08111f, 7, 28);
+      camera = new THREE.PerspectiveCamera(45, viewer.clientWidth / viewer.clientWidth, 0.01, 200);
+      camera.aspect = viewer.clientWidth / viewer.clientHeight;
+      camera.position.set(5.8, 4.2, 7.2);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      viewer.appendChild(renderer.domElement);
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.07;
+      controls.target.set(0, 0.4, 0);
+      controls.minDistance = 2.2;
+      controls.maxDistance = 18;
+
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 0.85));
+      const dir1 = new THREE.DirectionalLight(0xffffff, 0.95); dir1.position.set(3, 7, 6); scene.add(dir1);
+      const dir2 = new THREE.DirectionalLight(0xffe2a7, 0.35); dir2.position.set(-5, 3, -4); scene.add(dir2);
+      gridHelper = new THREE.GridHelper(14, 28, 0x2563eb, 0x1d4ed8);
+      gridHelper.material.opacity = 0.45; gridHelper.material.transparent = true; scene.add(gridHelper);
+      const axes = new THREE.AxesHelper(1.2); axes.position.set(-4.8, 0.04, -4.8); scene.add(axes);
+
+      const frontGroup = new THREE.Group();
+      const arrowMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.4 });
+      const arrowBody = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.15, 16), arrowMat);
+      arrowBody.rotation.x = Math.PI / 2; arrowBody.position.set(-4.6, 0.06, -0.55);
+      const arrowHead = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.36, 24), arrowMat);
+      arrowHead.rotation.x = -Math.PI / 2; arrowHead.position.set(-4.6, 0.06, -1.25);
+      frontGroup.add(arrowBody, arrowHead); scene.add(frontGroup);
+
+      modelContainer = new THREE.Group();
+      modelRoot = new THREE.Group();
+      pivotGroup = new THREE.Group();
+      modelContainer.add(modelRoot);
+      modelContainer.add(pivotGroup);
+      scene.add(modelContainer);
+
+      raycaster = new THREE.Raycaster(); mouse = new THREE.Vector2();
+      renderer.domElement.addEventListener('pointerdown', onPointerDown);
+      window.addEventListener('resize', onResize);
+      createLabels();
+      loadSTLParts();
+      animate();
+    }
+
+    function createLabels() {
+      const layer = document.getElementById('labelsLayer');
+      Object.entries(LEG_INFO).forEach(([key, info]) => {
+        const div = document.createElement('div');
+        div.className = 'label'; div.textContent = info.label; layer.appendChild(div); labelEls[key] = div;
+      });
+    }
+
+    function createMaterial(baseColor) {
+      return new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.46, metalness: 0.12, side: THREE.DoubleSide });
+    }
+
+    async function loadSTLParts() {
+      const loader = new THREE.STLLoader();
+      let loaded = 0;
+      const promises = STL_PARTS.map(part => new Promise((resolve, reject) => {
+        loader.load(part.file, geometry => {
+          geometry.computeVertexNormals(); geometry.computeBoundingBox();
+          if (part.group === 'body') geometry.translate(-BODY_CENTER_RAW.x, 0, -BODY_CENTER_RAW.z);
+          else geometry.center();
+          geometry.computeBoundingBox();
+          const material = createMaterial(part.color);
+          const mesh = new THREE.Mesh(geometry, material);
+          if (part.group === 'body') mesh.rotation.y = BODY_ROT_Y;
+          if (part.leg && LEG_PLACEMENTS[part.key]) {
+            const p = LEG_PLACEMENTS[part.key];
+            mesh.position.set(p.x, p.y, p.z); mesh.rotation.set(p.rx || 0, p.ry || 0, p.rz || 0);
+          }
+          mesh.name = part.key;
+          mesh.userData = { ...part, baseColor: part.color };
+          mesh.userData.defaultPosition = mesh.position.clone();
+          mesh.userData.defaultRotation = mesh.rotation.clone();
+          modelRoot.add(mesh);
+          loadedParts[part.key] = mesh;
+          loaded++;
+          setLoading(`Memuat ${loaded}/${STL_PARTS.length}: ${part.name}`, Math.round((loaded / STL_PARTS.length) * 100));
+          log('Loaded: ' + part.file);
+          resolve(mesh);
+        }, xhr => {}, err => reject(new Error(`Gagal load ${part.file}`)));
+      }));
+      try {
+        await Promise.all(promises);
+        finalizeModel(); hideLoading(); log('Semua STL berhasil dimuat.');
+      } catch (err) {
+        console.error(err); showLoadingError(err.message + '\n\nPastikan folder stl/ ikut diupload ke GitHub Pages, sejajar dengan file HTML.'); log('ERROR: ' + err.message);
+      }
+    }
+
+    function finalizeModel() {
+      modelRoot.position.set(0,0,0); modelContainer.scale.setScalar(MODEL_SCALE); gridHelper.position.y = -0.08;
+      populatePartSelect();
+      applyLockedRestLayout();
+      applySavedLayoutIfAny();
+      buildPivotHelpers();
+      computeLegLabelPositions();
+      focusModel();
+      selectLeg('frontRight'); selectPart('R1'); setStudioMode('part');
+      updatePivotButton();
+      log('Step 2B aktif: pivot visual + rotasi dari sumbu servo siap.');
+    }
+
+    function axisVector(axis) {
+      if (axis === 'x') return new THREE.Vector3(1,0,0);
+      if (axis === 'y') return new THREE.Vector3(0,1,0);
+      return new THREE.Vector3(0,0,1);
+    }
+
+    function getJointDeltaRad(jointKey) {
+      const jc = JOINT_CONFIG[jointKey];
+      if (!jc) return 0;
+      return THREE.MathUtils.degToRad((poseAngles[jointKey] - 90) * jc.dir * jc.gain);
+    }
+
+    function getCurrentBaseLayoutData() {
+      const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (raw) {
+        try { return JSON.parse(raw); } catch(e) {}
+      }
+      return LOCKED_REST_LAYOUT;
+    }
+
+    function applyPartTransformFromBase(mesh, partCfg, chainKeys) {
+      let pos = new THREE.Vector3(partCfg.p.x || 0, partCfg.p.y || 0, partCfg.p.z || 0);
+      let quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(partCfg.r.x || 0, partCfg.r.y || 0, partCfg.r.z || 0, 'XYZ'));
+
+      chainKeys.forEach(jk => {
+        const jc = JOINT_CONFIG[jk];
+        if (!jc) return;
+        const pivot = new THREE.Vector3(jc.pivot.x, jc.pivot.y, jc.pivot.z);
+        const dq = new THREE.Quaternion().setFromAxisAngle(axisVector(jc.axis), getJointDeltaRad(jk));
+        pos.sub(pivot).applyQuaternion(dq).add(pivot);
+        quat.premultiply(dq);
+      });
+
+      mesh.position.copy(pos);
+      mesh.rotation.setFromQuaternion(quat, 'XYZ');
+    }
+
+    function applyPoseVisual() {
+      if (!loadedParts.R1) return;
+      const data = getCurrentBaseLayoutData();
+      Object.entries(data.parts).forEach(([key, cfg]) => {
+        const mesh = loadedParts[key];
+        if (!mesh || !cfg) return;
+        if (!PART_ROTATION_CHAIN[key]) {
+          mesh.position.set(cfg.p.x || 0, cfg.p.y || 0, cfg.p.z || 0);
+          mesh.rotation.set(cfg.r.x || 0, cfg.r.y || 0, cfg.r.z || 0);
+        } else {
+          applyPartTransformFromBase(mesh, cfg, PART_ROTATION_CHAIN[key]);
+        }
+      });
+      computeLegLabelPositions();
+      updatePivotHelpers();
+      refreshHighlights();
+      updatePosePanel();
+    }
+
+    function computeLegLabelPositions() {
+      Object.entries(LEG_INFO).forEach(([legKey, info]) => {
+        const worldCenters = [];
+        info.parts.forEach(partKey => {
+          const mesh = loadedParts[partKey];
+          if (!mesh) return;
+          mesh.geometry.computeBoundingBox();
+          const c = new THREE.Vector3();
+          mesh.geometry.boundingBox.getCenter(c);
+          mesh.localToWorld(c);
+          worldCenters.push(c);
+        });
+        if (worldCenters.length) {
+          const avg = new THREE.Vector3(); worldCenters.forEach(v => avg.add(v)); avg.multiplyScalar(1 / worldCenters.length); avg.y += 0.55; labelPositions[legKey] = avg;
+        }
+      });
+    }
+
+    function buildPivotHelpers() {
+      while (pivotGroup.children.length) pivotGroup.remove(pivotGroup.children[0]);
+      Object.keys(pivotHelpers).forEach(k => delete pivotHelpers[k]);
+      Object.entries(JOINT_CONFIG).forEach(([key, cfg]) => {
+        const grp = new THREE.Group();
+        const pos = new THREE.Vector3(cfg.pivot.x, cfg.pivot.y, cfg.pivot.z);
+        grp.position.copy(pos);
+        const sphere = new THREE.Mesh(new THREE.SphereGeometry(2.4, 16, 16), new THREE.MeshStandardMaterial({ color: cfg.color, emissive: new THREE.Color(cfg.color).multiplyScalar(0.15) }));
+        grp.add(sphere);
+        const axis = axisVector(cfg.axis);
+        const len = 14;
+        const pts = [axis.clone().multiplyScalar(-len*0.5), axis.clone().multiplyScalar(len*0.5)];
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+        const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: cfg.color }));
+        grp.add(line);
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(1.8, 4.4, 12), new THREE.MeshStandardMaterial({ color: cfg.color }));
+        if (cfg.axis === 'x') cone.rotation.z = -Math.PI/2;
+        else if (cfg.axis === 'y') cone.rotation.x = 0;
+        else cone.rotation.x = Math.PI/2;
+        cone.position.copy(axis.clone().multiplyScalar(len*0.5 + 2.5));
+        grp.add(cone);
+        const labelSprite = makeTextSprite(key, cfg.color);
+        labelSprite.position.set(0, 6, 0);
+        grp.add(labelSprite);
+        grp.visible = pivotsOn;
+        pivotGroup.add(grp);
+        pivotHelpers[key] = grp;
+      });
+    }
+
+    function makeTextSprite(text, colorHex) {
+      const canvas = document.createElement('canvas');
+      const size = 128; canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,size,size);
+      ctx.fillStyle = 'rgba(15,23,42,0.85)';
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(8,36,112,40,12) : ctx.fillRect(8,36,112,40); if(ctx.roundRect) ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 32px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, size/2, size/2 + 2);
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(14, 14, 1);
+      return sprite;
+    }
+
+    function updatePivotHelpers() {
+      Object.entries(JOINT_CONFIG).forEach(([key, cfg]) => {
+        const grp = pivotHelpers[key]; if (!grp) return;
+        grp.position.set(cfg.pivot.x, cfg.pivot.y, cfg.pivot.z);
+        grp.visible = pivotsOn;
+      });
+    }
+
+    function togglePivots() {
+      pivotsOn = !pivotsOn;
+      updatePivotButton();
+      updatePivotHelpers();
+      log('Pivot helpers: ' + (pivotsOn ? 'ON' : 'OFF'));
+    }
+    function updatePivotButton() {
+      const btn = document.getElementById('pivotBtn');
+      if (btn) btn.textContent = pivotsOn ? 'Pivots: ON' : 'Pivots: OFF';
+    }
+
+    function setStudioMode(mode) {
+      studioMode = mode;
+      document.getElementById('modePartBtn').classList.toggle('active', mode === 'part');
+      document.getElementById('modePoseBtn').classList.toggle('active', mode === 'pose');
+      document.getElementById('partEditorCard').classList.toggle('disabledBox', mode !== 'part');
+      document.getElementById('layoutSaveCard').classList.toggle('disabledBox', mode !== 'part');
+      document.getElementById('poseEditorCard').classList.toggle('disabledBox', mode !== 'pose');
+      if (mode === 'part') {
+        document.getElementById('modeHint').innerHTML = 'Mode sekarang: <strong>Atur Posisi Part</strong>. Rapikan/koreksi STL jika masih perlu.';
+        log('Mode: Atur Posisi Part');
+      } else {
+        document.getElementById('modeHint').innerHTML = 'Mode sekarang: <strong>Atur Pose</strong>. Pose diputar dari titik pivot servo, bukan dari tengah part.';
+        updatePosePanel();
+        applyPoseVisual();
+        log('Mode: Atur Pose aktif. Pivot & arah putar visual diterapkan.');
+      }
+    }
+
+    function populatePartSelect() {
+      const sel = document.getElementById('partSelect'); sel.innerHTML = '';
+      const order = ['top','bottom','frame','R1','R2','R3','R4','L1','L2','L3','L4'];
+      order.forEach(key => {
+        const mesh = loadedParts[key]; if (!mesh) return;
+        const opt = document.createElement('option'); opt.value = key; opt.textContent = `${key} — ${mesh.userData.name || key}`; sel.appendChild(opt);
+      });
+    }
+
+    function selectPart(key) {
+      if (!loadedParts[key]) return; selectedPartKey = key;
+      const sel = document.getElementById('partSelect'); if (sel && sel.value !== key) sel.value = key;
+      const mesh = loadedParts[key];
+      if (mesh.userData.leg) {
+        selectedLeg = mesh.userData.leg; const info = LEG_INFO[selectedLeg];
+        document.getElementById('selectedName').textContent = info.label;
+        document.getElementById('selectedMap').textContent = info.map; clearLegButtons();
+        const btn = document.getElementById('btn_' + selectedLeg); if (btn) btn.classList.add('active');
+      }
+      refreshHighlights(); updatePartReadout(); updatePosePanel();
+    }
+
+    function getMoveStep() { return parseFloat(document.getElementById('moveStep').value || '2'); }
+    function getRotStep() { return parseFloat(document.getElementById('rotStep').value || '5'); }
+
+    function adjustPart(axis, delta) {
+      const mesh = loadedParts[selectedPartKey]; if (!mesh) return alert('Pilih part dulu.');
+      mesh.position[axis] += delta; computeLegLabelPositions(); updatePartReadout(); exportLayoutJson(); refreshHighlights();
+      log(`${selectedPartKey}: ${axis.toUpperCase()} ${delta > 0 ? '+' : ''}${delta}`);
+    }
+    function rotatePart(axis, deg) {
+      const mesh = loadedParts[selectedPartKey]; if (!mesh) return alert('Pilih part dulu.');
+      mesh.rotation[axis] += THREE.MathUtils.degToRad(deg); computeLegLabelPositions(); updatePartReadout(); exportLayoutJson(); refreshHighlights();
+      log(`${selectedPartKey}: Rot ${axis.toUpperCase()} ${deg > 0 ? '+' : ''}${deg}°`);
+    }
+
+    function updatePartReadout() {
+      const out = document.getElementById('partReadout'); const mesh = loadedParts[selectedPartKey];
+      if (!mesh) { out.textContent = 'Pilih part dulu.'; return; }
+      const r = mesh.rotation;
+      out.textContent = `Part: ${selectedPartKey}\nNama: ${mesh.userData.name || '-'}\nPosisi: X ${mesh.position.x.toFixed(2)} | Y ${mesh.position.y.toFixed(2)} | Z ${mesh.position.z.toFixed(2)}\nRotasi: X ${THREE.MathUtils.radToDeg(r.x).toFixed(1)}° | Y ${THREE.MathUtils.radToDeg(r.y).toFixed(1)}° | Z ${THREE.MathUtils.radToDeg(r.z).toFixed(1)}°`;
+    }
+
+    function getLayoutData() {
+      const data = { version: 'Moka_V3H_Step2B_Fix2_Axis_Calibration', parts: {} };
+      Object.entries(loadedParts).forEach(([key, mesh]) => {
+        data.parts[key] = { p: { x: round2(mesh.position.x), y: round2(mesh.position.y), z: round2(mesh.position.z) }, r: { x: round3(mesh.rotation.x), y: round3(mesh.rotation.y), z: round3(mesh.rotation.z) } };
+      });
+      return data;
+    }
+    function round2(v) { return Math.round(v * 100) / 100; }
+    function round3(v) { return Math.round(v * 1000) / 1000; }
+
+    function applyLayoutData(data) {
+      if (!data || !data.parts) throw new Error('Format JSON layout tidak valid.');
+      Object.entries(data.parts).forEach(([key, cfg]) => {
+        const mesh = loadedParts[key]; if (!mesh || !cfg) return;
+        if (cfg.p) mesh.position.set(cfg.p.x || 0, cfg.p.y || 0, cfg.p.z || 0);
+        if (cfg.r) mesh.rotation.set(cfg.r.x || 0, cfg.r.y || 0, cfg.r.z || 0);
+      });
+      computeLegLabelPositions(); refreshHighlights(); updatePartReadout(); exportLayoutJson();
+    }
+
+    function markCurrentLayoutAsDefault() {
+      Object.entries(loadedParts).forEach(([key, mesh]) => { mesh.userData.defaultPosition = mesh.position.clone(); mesh.userData.defaultRotation = mesh.rotation.clone(); });
+    }
+    function applyLockedRestLayout() { applyLayoutData(LOCKED_REST_LAYOUT); markCurrentLayoutAsDefault(); exportLayoutJson(); log('Layout REST terkunci diterapkan sebagai default Step 2B.'); }
+    function resetToLockedRestLayout() {
+      if (!confirm('Kembalikan layout ke REST sempurna yang sudah dikunci?')) return;
+      applyLockedRestLayout(); localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(getLayoutData())); log('Layout dikembalikan ke REST locked layout.');
+      if (studioMode === 'pose') applyPoseVisual();
+    }
+    function saveLayoutToBrowser() {
+      const data = getLayoutData(); localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(data)); exportLayoutJson(); log('Layout disimpan ke browser localStorage.'); alert('Layout part sudah disimpan di browser ini.');
+    }
+    function loadLayoutFromBrowser() {
+      const raw = localStorage.getItem(LAYOUT_STORAGE_KEY); if (!raw) return alert('Belum ada layout tersimpan di browser ini.'); applyLayoutData(JSON.parse(raw)); log('Layout dimuat dari browser.'); if (studioMode === 'pose') applyPoseVisual();
+    }
+    function applySavedLayoutIfAny() {
+      const raw = localStorage.getItem(LAYOUT_STORAGE_KEY); if (!raw) return; try { applyLayoutData(JSON.parse(raw)); log('Layout tersimpan otomatis dimuat.'); } catch (e) { log('Gagal load layout tersimpan: ' + e.message); }
+    }
+    function exportLayoutJson() { document.getElementById('layoutJson').value = JSON.stringify(getLayoutData(), null, 2); }
+    function importLayoutJson() {
+      const raw = document.getElementById('layoutJson').value.trim(); if (!raw) return alert('Tempel JSON layout dulu.');
+      try { const data = JSON.parse(raw); applyLayoutData(data); localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(data)); log('Layout JSON berhasil di-import dan disimpan.'); if (studioMode === 'pose') applyPoseVisual(); } catch(e) { alert('JSON tidak valid: ' + e.message); }
+    }
+    function copyLayoutJson() { exportLayoutJson(); const txt = document.getElementById('layoutJson').value; navigator.clipboard?.writeText(txt); log('Layout JSON dicopy ke clipboard.'); }
+    function downloadLayoutJson() {
+      exportLayoutJson(); const blob = new Blob([document.getElementById('layoutJson').value], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'moka_v3h_layout.json'; a.click(); URL.revokeObjectURL(a.href);
+    }
+    function resetSelectedPart() {
+      const mesh = loadedParts[selectedPartKey]; if (!mesh) return alert('Pilih part dulu.'); mesh.position.copy(mesh.userData.defaultPosition); mesh.rotation.copy(mesh.userData.defaultRotation); computeLegLabelPositions(); refreshHighlights(); updatePartReadout(); exportLayoutJson(); log(`${selectedPartKey} dikembalikan ke posisi default REST locked layout.`); if (studioMode === 'pose') applyPoseVisual();
+    }
+    function resetAllLayout() {
+      if (!confirm('Reset semua posisi part ke REST locked layout?')) return;
+      Object.values(loadedParts).forEach(mesh => { mesh.position.copy(mesh.userData.defaultPosition); mesh.rotation.copy(mesh.userData.defaultRotation); });
+      localStorage.removeItem(LAYOUT_STORAGE_KEY); computeLegLabelPositions(); refreshHighlights(); updatePartReadout(); exportLayoutJson(); log('Semua layout direset ke REST locked layout.'); if (studioMode === 'pose') applyPoseVisual();
+    }
+    function swapParts(a, b) {
+      const ma = loadedParts[a], mb = loadedParts[b]; if (!ma || !mb) return;
+      const pa = ma.position.clone(), ra = ma.rotation.clone(); ma.position.copy(mb.position); ma.rotation.copy(mb.rotation); mb.position.copy(pa); mb.rotation.copy(ra);
+      computeLegLabelPositions(); refreshHighlights(); updatePartReadout(); exportLayoutJson(); log(`Quick fix: transform ${a} ↔ ${b} ditukar.`); if (studioMode === 'pose') applyPoseVisual();
+    }
+
+    function setMqttStatus(text, ok=false) { const el = document.getElementById('mqttStatus'); el.textContent = text; el.classList.toggle('ok', ok); }
+    function connectMQTT() {
+      if (!window.mqtt) return alert('Library MQTT.js gagal dimuat. Cek koneksi internet lalu refresh.');
+      const url = document.getElementById('mqttUrl').value.trim(); const username = document.getElementById('mqttUser').value.trim(); const password = document.getElementById('mqttPass').value; if (!password) return alert('Isi password MQTT HiveMQ dulu.');
+      if (mqttClient) mqttClient.end(true);
+      const clientId = 'moka_3d_pose_' + Math.random().toString(16).slice(2,10); log('MQTT connecting: ' + url); setMqttStatus('CONNECTING', false);
+      mqttClient = mqtt.connect(url, { clientId, username, password, clean:true, reconnectPeriod:3000, connectTimeout:9000 });
+      mqttClient.on('connect', () => { setMqttStatus('ONLINE', true); log('MQTT connected. Client: ' + clientId); mqttClient.subscribe(TOPIC_STATUS, err => { if (err) log('Gagal subscribe status: ' + err.message); else log('Subscribe: ' + TOPIC_STATUS); }); });
+      mqttClient.on('message', (topic, message) => log('RX ' + topic + ': ' + message.toString()));
+      mqttClient.on('error', err => { setMqttStatus('ERROR', false); log('MQTT error: ' + err.message); });
+      mqttClient.on('close', () => setMqttStatus('OFFLINE', false));
+    }
+    function disconnectMQTT() { if (mqttClient) { mqttClient.end(true); mqttClient = null; } setMqttStatus('OFFLINE', false); log('MQTT disconnected manual.'); }
+    function publishCommand(obj) { if (!mqttClient || !mqttClient.connected) { alert('MQTT belum connect. Klik CONNECT dulu.'); return false; } const payload = JSON.stringify(obj); mqttClient.publish(TOPIC_COMMAND, payload); log('TX ' + TOPIC_COMMAND + ': ' + payload); return true; }
+    function currentAnglesString() { return SERVO_ORDER.map(k => Math.round(poseAngles[k])).join(','); }
+    function sendCurrentPose(moveMs=180, holdMs=0) { return publishCommand({ cmd:'setpose', angles: currentAnglesString(), moveMs, holdMs, from:'moka-3d-pose-studio-v3h-step2b-fix2' }); }
+    function scheduleLiveSend() { if (!livePoseOn || studioMode !== 'pose') return; clearTimeout(poseSendTimer); poseSendTimer = setTimeout(() => sendCurrentPose(160,0), 140); }
+    function toggleLivePose() { livePoseOn = !livePoseOn; document.getElementById('livePoseBtn').textContent = livePoseOn ? 'LIVE: ON' : 'LIVE: OFF'; document.getElementById('livePoseBtn').classList.toggle('green', livePoseOn); log('Live pose: ' + (livePoseOn ? 'ON' : 'OFF')); }
+
+    function getSelectedJoints() { return LEG_JOINTS[selectedLeg || 'frontRight']; }
+    function updatePosePanel() {
+      const j = getSelectedJoints(); if (!j) return;
+      document.getElementById('hipLabel').textContent = `${j.hipName} (${j.hip})`;
+      document.getElementById('kneeLabel').textContent = `${j.kneeName} (${j.knee})`;
+      document.getElementById('hipSlider').value = poseAngles[j.hip]; document.getElementById('kneeSlider').value = poseAngles[j.knee];
+      document.getElementById('hipAngleText').textContent = `${Math.round(poseAngles[j.hip])}°`; document.getElementById('kneeAngleText').textContent = `${Math.round(poseAngles[j.knee])}°`;
+      const hipCfg = JOINT_CONFIG[j.hip], kneeCfg = JOINT_CONFIG[j.knee];
+      document.getElementById('poseLegReadout').textContent = `${j.label}\nPinggul: ${j.hip} = ${Math.round(poseAngles[j.hip])}° @ pivot (${hipCfg.pivot.x}, ${hipCfg.pivot.y}, ${hipCfg.pivot.z})\nLutut  : ${j.knee} = ${Math.round(poseAngles[j.knee])}° @ pivot (${kneeCfg.pivot.x}, ${kneeCfg.pivot.y}, ${kneeCfg.pivot.z})`;
+      document.getElementById('poseReadout').textContent = `Order firmware:\n${SERVO_ORDER.join(', ')}\n\nAngles:\n${currentAnglesString()}\n\nPayload:\n{"cmd":"setpose","angles":"${currentAnglesString()}","moveMs":180,"holdMs":0}`;
+    }
+    function clampAngle(v) { return Math.max(0, Math.min(180, Math.round(Number(v)))); }
+    function setSelectedJointAngle(kind, value) { const j = getSelectedJoints(); const key = kind === 'hip' ? j.hip : j.knee; poseAngles[key] = clampAngle(value); updatePosePanel(); applyPoseVisual(); scheduleLiveSend(); }
+    function adjustSelectedJoint(kind, delta) { const j = getSelectedJoints(); const key = kind === 'hip' ? j.hip : j.knee; setSelectedJointAngle(kind, poseAngles[key] + delta); }
+    function resetSelectedLegPose() { const j = getSelectedJoints(); poseAngles[j.hip] = 90; poseAngles[j.knee] = 90; updatePosePanel(); applyPoseVisual(); scheduleLiveSend(); log(`${j.label}: reset ke 90° / 90°`); }
+    function setPosePreset(name) { if (name === 'rest') SERVO_ORDER.forEach(k => poseAngles[k]=90); if (name === 'stand') Object.assign(poseAngles, { R1:135, R2:45, L1:45, L2:135, R4:0, R3:180, L3:0, L4:180 }); updatePosePanel(); applyPoseVisual(); scheduleLiveSend(); log('Pose preset: ' + name.toUpperCase()); }
+    function copyPoseAngles() { const txt = currentAnglesString(); navigator.clipboard?.writeText(txt); log('Angles dicopy: ' + txt); }
+
+    function resetView() { camera.position.set(5.8, 4.2, 7.2); controls.target.set(0,0.35,0); controls.update(); }
+    function focusModel() { controls.target.set(0,0.35,0); controls.update(); }
+    function toggleLabels() { labelsOn = !labelsOn; document.getElementById('labelBtn').textContent = labelsOn ? 'Labels: ON' : 'Labels: OFF'; Object.values(labelEls).forEach(el => el.style.display = labelsOn ? 'block' : 'none'); }
+    function toggleWireframe() { wireframeOn = !wireframeOn; document.getElementById('wireBtn').textContent = wireframeOn ? 'Wireframe: ON' : 'Wireframe: OFF'; Object.values(loadedParts).forEach(mesh => { mesh.material.wireframe = wireframeOn; }); }
+
+    function onPointerDown(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1; mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1; raycaster.setFromCamera(mouse, camera);
+      const objects = Object.values(loadedParts); const hits = raycaster.intersectObjects(objects, false);
+      if (hits.length) {
+        const hit = hits[0].object; const leg = hit.userData.leg;
+        if (leg) { selectLeg(leg); selectPart(hit.name); log(`Klik part: ${hit.userData.name} → ${LEG_INFO[leg].label}`); }
+        else { selectPart(hit.name); document.getElementById('selectedName').textContent = hit.userData.name || hit.name; document.getElementById('selectedMap').textContent = 'Body / Frame'; clearLegButtons(); highlightLeg(null); selectedLeg = null; log(`Klik body part: ${hit.userData.name}`); }
+      }
+    }
+
+    function clearLegButtons() { Object.keys(LEG_INFO).forEach(k => { const btn = document.getElementById('btn_' + k); if (btn) btn.classList.remove('active'); }); }
+    function selectLeg(legKey) { selectedLeg = legKey; const info = LEG_INFO[legKey]; document.getElementById('selectedName').textContent = info.label; document.getElementById('selectedMap').textContent = info.map; clearLegButtons(); const btn = document.getElementById('btn_' + legKey); if (btn) btn.classList.add('active'); refreshHighlights(); updatePosePanel(); }
+    function refreshHighlights() { highlightLeg(selectedLeg); if (selectedPartKey && loadedParts[selectedPartKey]) { const mesh = loadedParts[selectedPartKey]; mesh.material.color.setHex(0x22c55e); mesh.material.emissive = new THREE.Color(0x052e16); } updateLabelClasses(); }
+    function highlightLeg(legKey) {
+      Object.values(loadedParts).forEach(mesh => { const base = mesh.userData.baseColor || 0xffffff; mesh.material.color.setHex(base); mesh.material.emissive = new THREE.Color(0x000000); });
+      if (!legKey) return; LEG_INFO[legKey].parts.forEach(key => { const mesh = loadedParts[key]; if (mesh) { mesh.material.color.setHex(0xffd166); mesh.material.emissive = new THREE.Color(0x4a3000); } });
+    }
+    function updateLabelClasses() { Object.entries(labelEls).forEach(([key, el]) => el.classList.toggle('selected', key === selectedLeg)); }
+    function updateLabels() {
+      if (!labelsOn) return; const viewer = document.getElementById('viewer'); const w = viewer.clientWidth, h = viewer.clientHeight;
+      Object.entries(labelEls).forEach(([key, el]) => { const pos = labelPositions[key]; if (!pos) return; const v = pos.clone().project(camera); const x = (v.x * 0.5 + 0.5) * w; const y = (-v.y * 0.5 + 0.5) * h; el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.opacity = v.z < 1 ? '1' : '0'; });
+    }
+    function onResize() { const viewer = document.getElementById('viewer'); camera.aspect = viewer.clientWidth / viewer.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(viewer.clientWidth, viewer.clientHeight); }
+    function animate() { requestAnimationFrame(animate); controls.update(); updateLabels(); renderer.render(scene, camera); }
+    init();
+  </script>
+</body>
+</html>
